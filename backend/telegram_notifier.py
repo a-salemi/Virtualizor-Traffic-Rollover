@@ -81,6 +81,47 @@ class TelegramNotifier:
         except Exception as e:
             return {"success": False, "message": str(e)}
 
+    def send_document(self, filename: str, content_bytes: bytes, caption: str = "", db=None) -> dict:
+        cfg = self.get_config(db)
+        if not cfg["token"] or not cfg["chat_id"]:
+            return {"success": False, "message": "Telegram Bot Token or Chat ID is missing. Please configure them in Settings."}
+
+        url = f"{cfg['api_server']}/bot{cfg['token']}/sendDocument"
+        data = {
+            "chat_id": cfg["chat_id"],
+            "caption": caption,
+            "parse_mode": "HTML"
+        }
+        files = {
+            "document": (filename, content_bytes, "application/json")
+        }
+
+        proxies = {}
+        if cfg["proxy"]:
+            proxy_url = cfg["proxy"].strip()
+            if proxy_url.startswith("socks5://"):
+                proxy_url = "socks5h://" + proxy_url[9:]
+            elif proxy_url.startswith("socks4://"):
+                proxy_url = "socks4a://" + proxy_url[9:]
+            proxies = {"http": proxy_url, "https": proxy_url}
+
+        try:
+            res = requests.post(url, data=data, files=files, proxies=proxies, timeout=25)
+            data_res = res.json()
+            if res.ok and data_res.get("ok"):
+                logger.info("Telegram backup document delivered successfully.")
+                return {"success": True, "message": "Backup document delivered to Telegram successfully!"}
+            else:
+                err = data_res.get("description", "Unknown Telegram API error")
+                logger.error(f"Telegram API error: {err}")
+                return {"success": False, "message": f"Telegram Error: {err}"}
+        except requests.exceptions.ProxyError as e:
+            return {"success": False, "message": f"SOCKS5 Proxy connection failed: {e}"}
+        except requests.exceptions.ConnectTimeout:
+            return {"success": False, "message": "Telegram connection timed out. If Telegram is filtered, please configure a SOCKS5 proxy."}
+        except Exception as e:
+            return {"success": False, "message": str(e)}
+
     def notify_rollover(self, vpsid: str, hostname: str, prev_limit: float, prev_used: float, new_limit: float):
         cfg = self.get_config()
         if not cfg["enabled"]:

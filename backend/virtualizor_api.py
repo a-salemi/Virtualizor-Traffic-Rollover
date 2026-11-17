@@ -47,10 +47,10 @@ def clean_host_and_port(ip: str, port: int = 4085):
     return cleaned, int(port)
 
 class VirtualizorClient:
-    def __init__(self):
-        self.ip, self.port = clean_host_and_port(VIRTUALIZOR_IP, VIRTUALIZOR_PORT)
-        self.api_key = VIRTUALIZOR_API_KEY
-        self.api_pass = VIRTUALIZOR_API_PASS
+    def __init__(self, ip: str = VIRTUALIZOR_IP, port: int = VIRTUALIZOR_PORT, api_key: str = VIRTUALIZOR_API_KEY, api_pass: str = VIRTUALIZOR_API_PASS):
+        self.ip, self.port = clean_host_and_port(ip, port)
+        self.api_key = api_key or ""
+        self.api_pass = api_pass or ""
         self.base_url = f"https://{self.ip}:{self.port}/index.php"
 
     def update_credentials(self, ip: str, port: int, api_key: str, api_pass: str):

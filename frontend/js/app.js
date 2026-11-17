@@ -413,114 +413,31 @@ function switchTab(tab) {
     }
 }
 
-// --- Node Settings Management ---
+// --- Settings Management ---
 async function loadSettings() {
-    try {
-        const res = await fetch("/api/settings/node");
-        if (res.ok) {
-            const data = await res.json();
-            document.getElementById("settingNodeIp").value = data.ip || "";
-            document.getElementById("settingNodePort").value = data.port || 4085;
-            document.getElementById("settingApiKey").value = data.api_key || "";
-            
-            const passInput = document.getElementById("settingApiPass");
-            const badge = document.getElementById("nodeStatusBadge");
-
-            if (data.is_configured) {
-                if (passInput) passInput.placeholder = "•••••••••••••••• (Saved - Leave blank to keep)";
-                if (badge) {
-                    badge.style.borderColor = "var(--accent-emerald)";
-                    badge.style.color = "var(--accent-emerald)";
-                    badge.textContent = t("status_online");
-                }
-            } else {
-                if (passInput) passInput.placeholder = "Enter API Password";
-                if (badge) {
-                    badge.style.borderColor = "var(--accent-rose)";
-                    badge.style.color = "var(--accent-rose)";
-                    badge.textContent = t("status_offline");
-                }
-            }
-        }
-    } catch (e) {
-        console.error("Error loading settings", e);
-    }
+    loadTelegramSettings();
+    loadPortSettings();
 }
 
-function cleanInputHost(raw) {
-    if (!raw) return "";
-    return raw.trim().replace(/^https?:\/\//i, '').split('/')[0].split(':')[0].trim();
-}
-
-async function handleSaveSettings(e) {
-    e.preventDefault();
-    const btn = document.getElementById("btnSaveConn");
-    btn.disabled = true;
-    
-    let rawIp = document.getElementById("settingNodeIp").value;
-    const ip = cleanInputHost(rawIp);
-    document.getElementById("settingNodeIp").value = ip;
-
-    const port = parseInt(document.getElementById("settingNodePort").value) || 4085;
-    const apiKey = document.getElementById("settingApiKey").value.trim();
-    const apiPass = document.getElementById("settingApiPass").value.trim();
-
+async function clearAllLogs() {
+    if (!confirm(t("confirm_clear_logs") || "Are you sure you want to clear all audit logs?")) return;
     try {
-        const res = await fetch("/api/settings/node", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ip, port, api_key: apiKey, api_pass: apiPass })
-        });
+        const res = await fetch("/api/logs", { method: "DELETE" });
         const data = await res.json();
         if (res.ok && data.success) {
-            showToast(t("toast_settings_saved"), "success");
-            loadSettings();
-            syncNode();
+            showToast(t("toast_logs_cleared") || "All logs cleared successfully", "success");
+            loadLogs();
         } else {
-            showToast(data.detail || "Error saving settings", "error");
+            showToast(data.detail || "Error clearing logs", "error");
         }
-    } catch (err) {
-        showToast("Error saving settings", "error");
-    } finally {
-        btn.disabled = false;
-    }
-}
-
-async function testNodeSettings() {
-    const btn = document.getElementById("btnTestConn");
-    btn.disabled = true;
-    showToast("Testing connection to Virtualizor...", "info");
-
-    let rawIp = document.getElementById("settingNodeIp").value;
-    const ip = cleanInputHost(rawIp);
-    document.getElementById("settingNodeIp").value = ip;
-
-    const port = parseInt(document.getElementById("settingNodePort").value) || 4085;
-    const apiKey = document.getElementById("settingApiKey").value.trim();
-    const apiPass = document.getElementById("settingApiPass").value.trim();
-
-    try {
-        const res = await fetch("/api/settings/test-connection", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ip, port, api_key: apiKey, api_pass: apiPass })
-        });
-        const data = await res.json();
-        if (data.success) {
-            showToast(`${t("toast_test_success")} (${data.vps_count} VPS found)`, "success");
-        } else {
-            showToast(`${t("toast_test_failed")}: ${data.error || "Unreachable"}`, "error", 6000);
-        }
-    } catch (err) {
-        showToast(`${t("toast_test_failed")}: ${err.message}`, "error");
-    } finally {
-        btn.disabled = false;
+    } catch (e) {
+        showToast("Failed to clear logs", "error");
     }
 }
 
 async function loadLogs() {
     try {
-        const res = await fetch("/api/logs?limit=80");
+        const res = await fetch("/api/logs?limit=100");
         if (res.ok) {
             const data = await res.json();
             renderLogs(data.logs || []);
@@ -532,24 +449,40 @@ async function loadLogs() {
 
 function renderLogs(logs) {
     const tbody = document.getElementById("logsTableBody");
+    if (!tbody) return;
     tbody.innerHTML = "";
 
     if (!logs || logs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 30px;">No audit logs recorded yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 35px;">${t('no_logs') || 'No audit logs recorded yet.'}</td></tr>`;
         return;
     }
 
     logs.forEach(l => {
         const tr = document.createElement("tr");
         let badgeColor = "var(--border-subtle)";
-        if (l.event_type === "ROLLOVER") badgeColor = "var(--accent-indigo)";
-        else if (l.event_type === "ADD_TRAFFIC") badgeColor = "var(--accent-emerald)";
+        let badgeIcon = "ℹ️";
+        if (l.event_type === "ROLLOVER") {
+            badgeColor = "var(--accent-indigo)";
+            badgeIcon = "🔄";
+        } else if (l.event_type === "ADD_TRAFFIC") {
+            badgeColor = "var(--accent-emerald)";
+            badgeIcon = "➕";
+        } else if (l.event_type === "SYNC") {
+            badgeColor = "var(--accent-cyan)";
+            badgeIcon = "⚡";
+        } else if (l.event_type === "AUTH") {
+            badgeColor = "var(--accent-amber)";
+            badgeIcon = "🔑";
+        } else if (l.event_type === "SYSTEM") {
+            badgeColor = "var(--text-muted)";
+            badgeIcon = "⚙️";
+        }
 
         tr.innerHTML = `
-            <td data-label="${t('th_log_time')}"><span class="num-mono" style="font-size: 0.82rem;">${l.timestamp}</span></td>
-            <td data-label="${t('th_log_event')}"><span class="badge-tag" style="border-color: ${badgeColor};">${l.event_type}</span></td>
-            <td data-label="${t('th_log_vps')}"><span class="badge-tag num-mono">#${l.vpsid}</span></td>
-            <td data-label="${t('th_log_message')}">${l.message}</td>
+            <td data-label="${t('th_log_time')}"><span class="num-mono" style="font-size: 0.82rem; color: var(--text-secondary);">${l.timestamp}</span></td>
+            <td data-label="${t('th_log_event')}"><span class="badge-tag" style="border-color: ${badgeColor}; color: ${badgeColor}; font-weight: 600;">${badgeIcon} ${l.event_type}</span></td>
+            <td data-label="${t('th_log_vps')}"><span class="badge-tag num-mono">${l.vpsid && l.vpsid !== '-' ? '#' + l.vpsid : '-'}</span></td>
+            <td data-label="${t('th_log_message')}" style="line-height: 1.45;">${l.message}</td>
         `;
         tbody.appendChild(tr);
     });

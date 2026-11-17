@@ -193,6 +193,12 @@ def list_logs(limit: int = 50, user: User = Depends(get_current_user), db: Sessi
     logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(limit).all()
     return {"logs": [l.to_dict() for l in logs]}
 
+@app.delete("/api/logs")
+def clear_logs(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    db.query(AuditLog).delete()
+    db.commit()
+    return {"success": True, "message": "All audit logs cleared successfully."}
+
 @app.get("/api/system/status")
 def system_status(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     total_vps = db.query(VPSTraffic).count()
@@ -505,19 +511,39 @@ def download_backup(user: User = Depends(get_current_user), db: Session = Depend
 @app.post("/api/settings/backup/send-telegram")
 def send_backup_to_telegram(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     cfg = telegram_notifier.get_config(db)
-    if not cfg["enabled"]:
-        raise HTTPException(status_code=400, detail="Telegram bot is not enabled.")
-    vps_count = db.query(VPSTraffic).count()
-    msg = (
+    if not cfg["token"] or not cfg["chat_id"]:
+        raise HTTPException(status_code=400, detail="Telegram Bot Token or Chat ID is missing. Please configure them in Settings.")
+
+    vps_data = [v.to_dict() for v in db.query(VPSTraffic).all()]
+    from backend.database import NodeSetting, VirtualizorPanel
+    settings_data = {s.key: s.value for s in db.query(NodeSetting).all()}
+    panels_data = [p.to_dict() for p in db.query(VirtualizorPanel).all()]
+    backup = {
+        "version": "2.0",
+        "timestamp": datetime.utcnow().isoformat(),
+        "settings": settings_data,
+        "panels": panels_data,
+        "vps": vps_data
+    }
+    json_bytes = json.dumps(backup, indent=2).encode("utf-8")
+    filename = f"virturoll-backup-{datetime.utcnow().strftime('%Y%m%d-%H%M')}.json"
+
+    caption = (
         f"📦 <b>نسخه پشتیبان سامانه ویرتو رول</b>\n\n"
         f"📅 تاریخ: <code>{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</code>\n"
-        f"🖥️ تعداد سرورها: <b>{vps_count}</b>\n"
-        f"✅ دیتابیس و تنظیمات فعال است."
+        f"🖥️ سرورها: <b>{len(vps_data)}</b> | نودها: <b>{len(panels_data)}</b>\n"
+        f"💾 فایل بکاپ کامل به پیوست ارسال شد."
+        if cfg["lang"] == "fa" else
+        f"📦 <b>VirtuRoll System Backup</b>\n\n"
+        f"📅 Date: <code>{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</code>\n"
+        f"🖥️ Instances: <b>{len(vps_data)}</b> | Nodes: <b>{len(panels_data)}</b>\n"
+        f"💾 Complete JSON backup file attached."
     )
-    res = telegram_notifier.send_message(msg, db)
+
+    res = telegram_notifier.send_document(filename, json_bytes, caption=caption, db=db)
     if not res["success"]:
         raise HTTPException(status_code=400, detail=res["message"])
-    return {"success": True, "message": "Backup summary sent to Telegram!"}
+    return {"success": True, "message": "Backup document sent to Telegram successfully!"}
 
 # --- Serve Static Frontend ---
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"

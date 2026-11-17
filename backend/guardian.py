@@ -2,41 +2,40 @@ from __future__ import annotations
 from datetime import datetime
 import json
 import logging
+import threading
+from typing import Tuple
 from sqlalchemy.orm import Session
 from backend.config import (
     ROLLOVER_WINDOW_START_DAY,
     ROLLOVER_WINDOW_END_DAY
 )
-from backend.database import VPSTraffic, AuditLog
-from backend.virtualizor_api import virtualizor_client
+from backend.database import VPSTraffic, AuditLog, VirtualizorPanel
+from backend.virtualizor_api import virtualizor_client, VirtualizorClient
 from backend.telegram_notifier import telegram_notifier
 
 logger = logging.getLogger("virturoll.guardian")
 
 class TrafficGuardian:
-    def sync_and_check(self, db: Session) -> dict:
+    def _sync_single_client(self, db: Session, client: VirtualizorClient, is_rollover_window: bool, current_month_tag: str) -> Tuple[int, int]:
         """
-        Polls Virtualizor node, tracks usage deltas, detects monthly reset events,
-        and applies persistent bandwidth rollover automatically.
+        Syncs VPS instances from a single Virtualizor client.
+        Virtualizor is treated as the strict, single source of truth for all current limits and usage counters.
         """
-        if not virtualizor_client.is_configured():
-            return {"status": "unconfigured", "message": "Virtualizor API credentials not set. Please configure in Node Settings."}
-
-        raw_res = virtualizor_client._request({"act": "vs"}, method="GET")
+        raw_res = client._request({"act": "vs"}, method="GET")
         if not raw_res or not isinstance(raw_res, dict):
-            return {"status": "error", "message": f"Could not connect to {virtualizor_client.base_url}. Check if node is online and port {virtualizor_client.port} is open."}
+            logger.warning(f"Could not reach Virtualizor node at {client.base_url}")
+            return 0, 0
 
         if "error" in raw_res and raw_res["error"]:
             err = raw_res["error"]
             if isinstance(err, list):
                 err = ", ".join(err)
-            return {"status": "error", "message": f"Virtualizor rejected API: {err}"}
+            logger.error(f"Virtualizor node {client.base_url} returned error: {err}")
+            return 0, 0
 
         vps_dict = raw_res.get("vs", {})
-
-        current_month_tag = datetime.utcnow().strftime("%Y-%m")
-        day_of_month = datetime.utcnow().day
-        is_rollover_window = (day_of_month >= ROLLOVER_WINDOW_START_DAY or day_of_month <= ROLLOVER_WINDOW_END_DAY)
+        if not isinstance(vps_dict, dict):
+            return 0, 0
 
         synced_count = 0
         rollover_count = 0
@@ -45,7 +44,6 @@ class TrafficGuardian:
             vpsid = str(vpsid_raw)
             hostname = data.get("hostname", f"vps-{vpsid}")
             
-            # Extract primary IP
             ips = data.get("ips", {})
             ip_str = ""
             if isinstance(ips, dict) and ips:
@@ -64,7 +62,8 @@ class TrafficGuardian:
             rec = db.query(VPSTraffic).filter(VPSTraffic.vpsid == vpsid).first()
 
             if not rec:
-                # First time seeing this VPS -> Register in system
+                # First discovery of this VPS
+                is_unl = bool(virt_limit <= 0)
                 rec = VPSTraffic(
                     vpsid=vpsid,
                     hostname=hostname,
@@ -73,7 +72,7 @@ class TrafficGuardian:
                     current_virtualizor_limit_gb=virt_limit,
                     current_month_used_gb=virt_used,
                     last_known_used_gb=virt_used,
-                    remaining_gb=max(0.0, virt_limit - virt_used),
+                    remaining_gb=0.0 if is_unl else max(0.0, round(virt_limit - virt_used, 2)),
                     last_rollover_period=current_month_tag,
                     is_suspended=bool(data.get("status") == 0)
                 )
@@ -81,7 +80,7 @@ class TrafficGuardian:
                 synced_count += 1
                 continue
 
-            # Existing record in database
+            # Existing VPS record
             rec.hostname = hostname
             rec.ip = ip_str
             rec.is_suspended = bool(data.get("status") == 0)
@@ -91,26 +90,24 @@ class TrafficGuardian:
             last_rollover = rec.last_rollover_period
             is_unlimited = (prev_limit <= 0 or virt_limit <= 0)
 
-            # RESET DETECTION LOGIC:
-            # 1. Inside rollover date window (end/start of month)
+            # Monthly reset detection:
+            # 1. Inside rollover date window (end/start of calendar month)
             # 2. Not yet processed for the current month
-            # 3. Usage dropped drastically (Virtualizor wiped the monthly counter to 0)
+            # 3. Usage dropped drastically (Virtualizor reset month counter to 0)
             traffic_dropped = (prev_used > 0.5 and virt_used < prev_used * 0.3) or (prev_used > 0.05 and virt_used == 0)
             not_yet_rolled_over = (last_rollover != current_month_tag)
 
             if is_rollover_window and traffic_dropped and not_yet_rolled_over:
                 if is_unlimited:
-                    # Unlimited server: Do NOT modify bandwidth limit! Keep at 0 (Unlimited)
-                    logger.info(f"[ROLLOVER SKIPPED] VPS {vpsid} ({hostname}) is UNLIMITED. Limit remains 0.")
+                    logger.info(f"[ROLLOVER SKIPPED] VPS {vpsid} ({hostname}) is UNLIMITED. Limit stays 0.")
                     rec.current_virtualizor_limit_gb = 0.0
                     rec.current_month_used_gb = virt_used
                     rec.last_known_used_gb = virt_used
                     rec.remaining_gb = 0.0
                     rec.last_rollover_period = current_month_tag
                 else:
-                    # Metered/Prepaid server: Calculate actual remaining bandwidth:
                     remaining = max(0.0, round(prev_limit - prev_used, 2))
-                    new_limit = max(0.05, remaining) # Safety floor
+                    new_limit = max(0.05, remaining)
 
                     logger.info(
                         f"[ROLLOVER DETECTED] VPS {vpsid} ({hostname}): "
@@ -118,8 +115,7 @@ class TrafficGuardian:
                         f"New Rollover Limit: {new_limit}GB"
                     )
 
-                    # Push updated limit to Virtualizor node
-                    success, api_msg = virtualizor_client.update_vps_bandwidth(vpsid, new_limit, hostname=hostname)
+                    success, api_msg = client.update_vps_bandwidth(vpsid, new_limit, hostname=hostname)
 
                     audit = AuditLog(
                         event_type="ROLLOVER",
@@ -142,39 +138,88 @@ class TrafficGuardian:
                     rec.last_rollover_period = current_month_tag
                     rollover_count += 1
 
-                    # Trigger real-time Telegram notification
                     try:
                         telegram_notifier.notify_rollover(vpsid, hostname, prev_limit, prev_used, new_limit)
                     except Exception as te:
                         logger.error(f"Failed to send rollover telegram alert: {te}")
             else:
-                # Normal ongoing operation: Keep used metrics synchronized
+                # Normal ongoing operation: Strictly mirror Virtualizor node's metrics
                 rec.current_month_used_gb = virt_used
                 if virt_used >= rec.last_known_used_gb:
                     rec.last_known_used_gb = virt_used
-                
+
                 if is_unlimited:
                     rec.remaining_gb = 0.0
                     rec.current_virtualizor_limit_gb = 0.0
                 else:
-                    rec.remaining_gb = max(0.0, round(rec.current_virtualizor_limit_gb - virt_used, 2))
-
-                # If admin manually modified limit in Virtualizor panel, sync it
-                if abs(virt_limit - rec.current_virtualizor_limit_gb) > 0.1 and not not_yet_rolled_over:
                     rec.current_virtualizor_limit_gb = virt_limit
+                    rec.remaining_gb = max(0.0, round(virt_limit - virt_used, 2))
+                    if virt_limit > rec.total_purchased_gb:
+                        rec.total_purchased_gb = virt_limit
 
             synced_count += 1
+
+        return synced_count, rollover_count
+
+    def sync_and_check(self, db: Session) -> dict:
+        """
+        Polls Virtualizor node(s), tracks usage deltas, detects monthly reset events,
+        and applies persistent bandwidth rollover automatically.
+        """
+        current_month_tag = datetime.utcnow().strftime("%Y-%m")
+        day_of_month = datetime.utcnow().day
+        is_rollover_window = (day_of_month >= ROLLOVER_WINDOW_START_DAY or day_of_month <= ROLLOVER_WINDOW_END_DAY)
+
+        panels = db.query(VirtualizorPanel).filter(VirtualizorPanel.is_active == True).all()
+
+        total_synced = 0
+        total_rollovers = 0
+
+        if panels:
+            for panel in panels:
+                p_client = VirtualizorClient(panel.ip, panel.port, panel.api_key, panel.api_pass)
+                s_count, r_count = self._sync_single_client(db, p_client, is_rollover_window, current_month_tag)
+                total_synced += s_count
+                total_rollovers += r_count
+                panel.last_sync = datetime.utcnow()
+                panel.last_status = "online" if s_count > 0 or panel.last_status == "online" else "error"
+                if s_count > 0:
+                    panel.vps_count = s_count
+        elif virtualizor_client.is_configured():
+            s_count, r_count = self._sync_single_client(db, virtualizor_client, is_rollover_window, current_month_tag)
+            total_synced += s_count
+            total_rollovers += r_count
+        else:
+            return {"status": "unconfigured", "message": "No Virtualizor node or panel credentials configured."}
 
         db.commit()
         return {
             "status": "success",
-            "total_vps": synced_count,
-            "rollovers_applied": rollover_count,
+            "total_vps": total_synced,
+            "rollovers_applied": total_rollovers,
             "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         }
 
+    def _resolve_client_for_vps(self, db: Session, vpsid: str) -> VirtualizorClient:
+        """Find the corresponding Virtualizor client for a given VPS ID"""
+        panels = db.query(VirtualizorPanel).filter(VirtualizorPanel.is_active == True).all()
+        if len(panels) == 1:
+            p = panels[0]
+            return VirtualizorClient(p.ip, p.port, p.api_key, p.api_pass)
+        elif len(panels) > 1:
+            for p in panels:
+                client = VirtualizorClient(p.ip, p.port, p.api_key, p.api_pass)
+                res = client._request({"act": "vs"}, method="GET")
+                if res and isinstance(res, dict) and "vs" in res:
+                    if str(vpsid) in res["vs"]:
+                        return client
+        return virtualizor_client
+
     def add_bandwidth(self, db: Session, vpsid: str, extra_gb: float) -> dict:
-        """Top up bandwidth package for a customer"""
+        """
+        Top up bandwidth package for a customer.
+        Virtualizor node is the sole authority: the database is NEVER updated unless the node confirms success.
+        """
         rec = db.query(VPSTraffic).filter(VPSTraffic.vpsid == str(vpsid)).first()
         if not rec:
             return {"success": False, "message": "VPS not found in database."}
@@ -182,15 +227,20 @@ class TrafficGuardian:
         new_total_purchased = round(rec.total_purchased_gb + extra_gb, 2)
         new_limit = round(rec.current_virtualizor_limit_gb + extra_gb, 2)
 
+        client = self._resolve_client_for_vps(db, vpsid)
+        if not client.is_configured():
+            return {"success": False, "message": "Virtualizor node credentials not configured."}
+
         # Update Virtualizor node
-        success, api_msg = virtualizor_client.update_vps_bandwidth(vpsid, new_limit, hostname=rec.hostname)
+        success, api_msg = client.update_vps_bandwidth(vpsid, new_limit, hostname=rec.hostname)
         if not success:
             logger.error(f"Failed to update bandwidth on Virtualizor node for VPS {vpsid}: {api_msg}")
             return {
                 "success": False,
-                "message": f"Virtualizor node: {api_msg}"
+                "message": f"Virtualizor node rejected update: {api_msg}"
             }
 
+        # Node confirmed success -> Strictly update local database metrics
         rec.total_purchased_gb = new_total_purchased
         rec.current_virtualizor_limit_gb = new_limit
         rec.remaining_gb = max(0.0, round(new_limit - rec.current_month_used_gb, 2))
@@ -198,7 +248,7 @@ class TrafficGuardian:
         audit = AuditLog(
             event_type="ADD_TRAFFIC",
             vpsid=str(vpsid),
-            message=f"Added {extra_gb} GB traffic to VPS {vpsid} ({rec.hostname}). New limit: {new_limit} GB. (Node confirmed: {api_msg})",
+            message=f"Added {extra_gb} GB traffic to VPS #{vpsid} ({rec.hostname}). New limit: {new_limit} GB. (Node confirmed: {api_msg})",
             details=json.dumps({
                 "added_gb": extra_gb,
                 "new_limit_gb": new_limit,
@@ -209,8 +259,7 @@ class TrafficGuardian:
         db.add(audit)
         db.commit()
 
-        # Trigger real-time Telegram top-up alert in background daemon thread (never delays response)
-        import threading
+        # Trigger real-time Telegram top-up alert in background daemon thread
         try:
             threading.Thread(
                 target=telegram_notifier.notify_topup,
