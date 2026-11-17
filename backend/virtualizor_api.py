@@ -1,4 +1,5 @@
 import logging
+import json
 import requests
 import urllib3
 from typing import Dict, Any, Optional
@@ -13,6 +14,11 @@ from backend.config import (
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger("virturoll.api")
+
+DEFAULT_HEADERS = {
+    "User-Agent": "Softaculous",
+    "Accept": "application/json"
+}
 
 def clean_host_and_port(ip: str, port: int = 4085):
     """Clean user input: strip https://, http://, trailing slashes, and extract embedded port"""
@@ -65,18 +71,27 @@ class VirtualizorClient:
     def is_configured(self) -> bool:
         return bool(self.api_key and self.api_pass and self.ip)
 
+    def _build_auth_params(self, base_params: Dict[str, Any], api_key: str, api_pass: str) -> Dict[str, Any]:
+        """Provides both standard and admin auth parameters to maximize compatibility across Virtualizor versions"""
+        params = {
+            "api": "json",
+            "adminindex": 1,
+            # Standard Virtualizor parameter style
+            "apikey": api_key,
+            "apipass": api_pass,
+            # Admin-specific parameters
+            "adminapikey": api_key,
+            "adminapipass": api_pass,
+        }
+        params.update(base_params)
+        return params
+
     def _request(self, params: Dict[str, Any], data: Optional[Dict[str, Any]] = None, method: str = "POST", timeout: int = 15) -> Optional[Dict[str, Any]]:
         if not self.is_configured():
             logger.warning("Virtualizor API is not configured yet with API_KEY and API_PASS.")
             return None
 
-        req_params = {
-            "api": "json",
-            "adminindex": 1,
-            "apikey": self.api_key,
-            "apipass": self.api_pass,
-        }
-        req_params.update(params)
+        req_params = self._build_auth_params(params, self.api_key, self.api_pass)
 
         try:
             if method.upper() == "POST":
@@ -84,6 +99,7 @@ class VirtualizorClient:
                     self.base_url,
                     params=req_params,
                     data=data or {},
+                    headers=DEFAULT_HEADERS,
                     verify=False,
                     timeout=timeout
                 )
@@ -91,11 +107,17 @@ class VirtualizorClient:
                 res = requests.get(
                     self.base_url,
                     params=req_params,
+                    headers=DEFAULT_HEADERS,
                     verify=False,
                     timeout=timeout
                 )
 
             res.raise_for_status()
+            text = res.text.strip()
+            if text.startswith("<") or "<html" in text.lower():
+                logger.error(f"Virtualizor returned HTML Login page for {self.base_url}. Authentication rejected by node.")
+                return {"error": "Virtualizor rejected API credentials and redirected to HTML login. Check Allowed IP on your Virtualizor node."}
+
             data = res.json()
             if isinstance(data, dict) and "error" in data and data["error"]:
                 logger.error(f"Virtualizor API error returned: {data['error']}")
@@ -114,16 +136,20 @@ class VirtualizorClient:
             api_pass = self.api_pass
 
         test_url = f"https://{clean_ip}:{clean_port}/index.php"
-        req_params = {
-            "act": "vs",
-            "api": "json",
-            "adminindex": 1,
-            "apikey": api_key.strip(),
-            "apipass": api_pass.strip(),
-        }
+        req_params = self._build_auth_params({"act": "vs"}, api_key.strip(), api_pass.strip())
+        
         try:
-            res = requests.get(test_url, params=req_params, verify=False, timeout=12)
+            res = requests.get(test_url, params=req_params, headers=DEFAULT_HEADERS, verify=False, timeout=12)
             res.raise_for_status()
+            text = res.text.strip()
+            
+            # Detect HTML login page redirection
+            if text.startswith("<") or "<html" in text.lower() or "loginform" in text.lower():
+                return {
+                    "success": False,
+                    "error": "Virtualizor served the HTML Login page! This means authentication was rejected. Please check: (1) In Virtualizor Admin Panel -> Configuration -> API Credentials, add your third-party server's public IP to 'Allowed IP' (or leave empty if allowed), (2) Ensure this API Key was created in Admin Panel (port 4085), not Enduser panel."
+                }
+
             data = res.json()
             if isinstance(data, dict):
                 if "error" in data and data["error"]:
@@ -139,7 +165,7 @@ class VirtualizorClient:
                     "vps_count": vps_count,
                     "message": f"Successfully connected to {clean_ip}:{clean_port}! Found {vps_count} virtual machines."
                 }
-            return {"success": False, "error": f"Invalid JSON response received from {test_url}"}
+            return {"success": False, "error": f"Invalid response received from {test_url}"}
         except requests.exceptions.ConnectTimeout:
             return {"success": False, "error": f"Connection timed out to {clean_ip}:{clean_port}. Ensure port {clean_port} is open in firewall."}
         except requests.exceptions.SSLError as e:
