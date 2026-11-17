@@ -128,7 +128,6 @@ async function handleLogout() {
 // --- Dashboard & VPS Rendering ---
 async function loadDashboard() {
     try {
-        // 1. Fetch system status
         const statusRes = await fetch("/api/system/status");
         if (statusRes.ok) {
             const stats = await statusRes.json();
@@ -136,9 +135,16 @@ async function loadDashboard() {
             document.getElementById("statManagedBw").textContent = stats.total_managed_bw_gb;
             document.getElementById("statUsedBw").textContent = stats.total_used_bw_gb;
             document.getElementById("statRemainingBw").textContent = stats.total_remaining_bw_gb;
+            const sumActive = document.getElementById("sumActiveVps");
+            if (sumActive) sumActive.textContent = stats.total_vps;
         }
+    } catch (e) {
+        console.error("Dashboard load error", e);
+    }
+}
 
-        // 2. Fetch VPS list
+async function loadVPSList() {
+    try {
         const vpsRes = await fetch("/api/vps");
         if (vpsRes.ok) {
             const data = await vpsRes.json();
@@ -146,7 +152,7 @@ async function loadDashboard() {
             renderVPS(allVpsData);
         }
     } catch (e) {
-        console.error("Dashboard load error", e);
+        console.error("VPS list load error", e);
     }
 }
 
@@ -234,6 +240,9 @@ async function syncNode() {
         if (data.status === "success") {
             showToast(`${t("toast_sync_success")} (${data.total_vps} VPS synced)`, "success");
             loadDashboard();
+            if (currentTab === "vps") {
+                loadVPSList();
+            }
         } else {
             showToast(data.message || t("toast_sync_failed"), "error");
         }
@@ -270,6 +279,7 @@ async function submitTopup(e) {
         if (res.ok && data.success) {
             closeTopupModal();
             showToast(`${t("toast_add_success")} (+${gb} GB)`, "success");
+            loadVPSList();
             loadDashboard();
         } else {
             showToast(data.detail || t("toast_add_failed"), "error");
@@ -287,31 +297,37 @@ function switchTab(tab) {
     if (activeNav) activeNav.classList.add("active");
     
     const dashTab = document.getElementById("tabDashboard");
+    const vpsTab = document.getElementById("tabVps");
     const logsTab = document.getElementById("tabLogs");
     const settingsTab = document.getElementById("tabSettings");
     const pageHeading = document.getElementById("pageHeading");
-
-    closeMobileSidebar();
     const crumbCurrent = document.getElementById("crumbCurrent");
 
+    closeMobileSidebar();
+
+    // Hide all tabs
+    if (dashTab) dashTab.style.display = "none";
+    if (vpsTab) vpsTab.style.display = "none";
+    if (logsTab) logsTab.style.display = "none";
+    if (settingsTab) settingsTab.style.display = "none";
+
     if (tab === "dashboard") {
-        dashTab.style.display = "block";
-        logsTab.style.display = "none";
-        if (settingsTab) settingsTab.style.display = "none";
+        if (dashTab) dashTab.style.display = "block";
         pageHeading.textContent = t("telemetry_title");
         if (crumbCurrent) crumbCurrent.textContent = t("breadcrumb_overview");
         loadDashboard();
         fetchTelemetry();
+    } else if (tab === "vps") {
+        if (vpsTab) vpsTab.style.display = "block";
+        pageHeading.textContent = t("vps_title");
+        if (crumbCurrent) crumbCurrent.textContent = t("breadcrumb_vps");
+        loadVPSList();
     } else if (tab === "logs") {
-        dashTab.style.display = "none";
-        logsTab.style.display = "block";
-        if (settingsTab) settingsTab.style.display = "none";
+        if (logsTab) logsTab.style.display = "block";
         pageHeading.textContent = t("logs_title");
         if (crumbCurrent) crumbCurrent.textContent = t("breadcrumb_logs");
         loadLogs();
     } else if (tab === "settings") {
-        dashTab.style.display = "none";
-        logsTab.style.display = "none";
         if (settingsTab) settingsTab.style.display = "block";
         pageHeading.textContent = t("settings_page_title");
         if (crumbCurrent) crumbCurrent.textContent = t("breadcrumb_settings");

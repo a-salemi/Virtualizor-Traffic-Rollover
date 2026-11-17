@@ -16,6 +16,7 @@ const translations = {
         
         breadcrumb_root: "VirtuRoll",
         breadcrumb_overview: "Overview",
+        breadcrumb_vps: "VPS Instances",
         breadcrumb_logs: "Activity Logs",
         breadcrumb_settings: "Settings",
 
@@ -169,6 +170,7 @@ const translations = {
 
         breadcrumb_root: "ویرتو رول",
         breadcrumb_overview: "نمای کلی",
+        breadcrumb_vps: "سرورهای مجازی",
         breadcrumb_logs: "گزارشات فعالیت",
         breadcrumb_settings: "تنظیمات کلی",
 
