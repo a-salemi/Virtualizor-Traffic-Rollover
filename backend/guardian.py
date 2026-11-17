@@ -18,11 +18,19 @@ class TrafficGuardian:
         and applies persistent bandwidth rollover automatically.
         """
         if not virtualizor_client.is_configured():
-            return {"status": "unconfigured", "message": "Virtualizor API credentials not set."}
+            return {"status": "unconfigured", "message": "Virtualizor API credentials not set. Please configure in Node Settings."}
 
-        vps_dict = virtualizor_client.get_all_vps()
-        if not vps_dict:
-            return {"status": "error", "message": "Could not fetch VPS list from Virtualizor node."}
+        raw_res = virtualizor_client._request({"act": "vs"}, method="GET")
+        if not raw_res or not isinstance(raw_res, dict):
+            return {"status": "error", "message": f"Could not connect to {virtualizor_client.base_url}. Check if node is online and port {virtualizor_client.port} is open."}
+
+        if "error" in raw_res and raw_res["error"]:
+            err = raw_res["error"]
+            if isinstance(err, list):
+                err = ", ".join(err)
+            return {"status": "error", "message": f"Virtualizor rejected API: {err}"}
+
+        vps_dict = raw_res.get("vs", {})
 
         current_month_tag = datetime.utcnow().strftime("%Y-%m")
         day_of_month = datetime.utcnow().day

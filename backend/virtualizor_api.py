@@ -14,19 +14,43 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger("virturoll.api")
 
+def clean_host_and_port(ip: str, port: int = 4085):
+    """Clean user input: strip https://, http://, trailing slashes, and extract embedded port"""
+    if not ip:
+        return "127.0.0.1", int(port)
+    
+    cleaned = str(ip).strip()
+    if cleaned.startswith("https://"):
+        cleaned = cleaned[8:]
+    elif cleaned.startswith("http://"):
+        cleaned = cleaned[7:]
+    
+    # Strip paths like /index.php or /
+    cleaned = cleaned.split("/")[0].strip()
+
+    # Extract port if user entered host:port
+    if ":" in cleaned and not cleaned.startswith("["):
+        parts = cleaned.split(":", 1)
+        cleaned = parts[0].strip()
+        try:
+            port = int(parts[1].strip())
+        except ValueError:
+            pass
+
+    return cleaned, int(port)
+
 class VirtualizorClient:
     def __init__(self):
-        self.ip = VIRTUALIZOR_IP
-        self.port = VIRTUALIZOR_PORT
+        self.ip, self.port = clean_host_and_port(VIRTUALIZOR_IP, VIRTUALIZOR_PORT)
         self.api_key = VIRTUALIZOR_API_KEY
         self.api_pass = VIRTUALIZOR_API_PASS
         self.base_url = f"https://{self.ip}:{self.port}/index.php"
 
     def update_credentials(self, ip: str, port: int, api_key: str, api_pass: str):
-        self.ip = ip.strip()
-        self.port = int(port)
+        self.ip, self.port = clean_host_and_port(ip, port)
         self.api_key = api_key.strip()
-        self.api_pass = api_pass.strip()
+        if api_pass and api_pass.strip():
+            self.api_pass = api_pass.strip()
         self.base_url = f"https://{self.ip}:{self.port}/index.php"
         logger.info(f"Virtualizor credentials updated: target={self.base_url}")
 
@@ -72,7 +96,10 @@ class VirtualizorClient:
                 )
 
             res.raise_for_status()
-            return res.json()
+            data = res.json()
+            if isinstance(data, dict) and "error" in data and data["error"]:
+                logger.error(f"Virtualizor API error returned: {data['error']}")
+            return data
         except requests.exceptions.RequestException as e:
             logger.error(f"Virtualizor API connection error to {self.base_url}: {e}")
             return None
@@ -82,7 +109,11 @@ class VirtualizorClient:
 
     def test_connection_params(self, ip: str, port: int, api_key: str, api_pass: str) -> dict:
         """Test explicit credentials without altering current client state"""
-        test_url = f"https://{ip.strip()}:{int(port)}/index.php"
+        clean_ip, clean_port = clean_host_and_port(ip, port)
+        if not api_pass or not api_pass.strip():
+            api_pass = self.api_pass
+
+        test_url = f"https://{clean_ip}:{clean_port}/index.php"
         req_params = {
             "act": "vs",
             "api": "json",
@@ -91,24 +122,30 @@ class VirtualizorClient:
             "apipass": api_pass.strip(),
         }
         try:
-            res = requests.get(test_url, params=req_params, verify=False, timeout=10)
+            res = requests.get(test_url, params=req_params, verify=False, timeout=12)
             res.raise_for_status()
             data = res.json()
             if isinstance(data, dict):
                 if "error" in data and data["error"]:
-                    return {"success": False, "error": str(data["error"])}
-                vps_count = len(data.get("vs", {}))
+                    err = data["error"]
+                    if isinstance(err, list):
+                        err = ", ".join(err)
+                    return {"success": False, "error": f"Virtualizor rejected API request: {err}"}
+                
+                vps_dict = data.get("vs", {})
+                vps_count = len(vps_dict) if isinstance(vps_dict, dict) else 0
                 return {
                     "success": True,
                     "vps_count": vps_count,
-                    "version": data.get("version", "Connected"),
-                    "message": f"Successfully connected to node! Found {vps_count} virtual machines."
+                    "message": f"Successfully connected to {clean_ip}:{clean_port}! Found {vps_count} virtual machines."
                 }
-            return {"success": False, "error": "Invalid response format from server."}
+            return {"success": False, "error": f"Invalid JSON response received from {test_url}"}
         except requests.exceptions.ConnectTimeout:
-            return {"success": False, "error": "Connection timed out. Check firewall and ensure port 4085 is reachable."}
+            return {"success": False, "error": f"Connection timed out to {clean_ip}:{clean_port}. Ensure port {clean_port} is open in firewall."}
+        except requests.exceptions.SSLError as e:
+            return {"success": False, "error": f"SSL Error communicating with {test_url}: {e}"}
         except requests.exceptions.ConnectionError as e:
-            return {"success": False, "error": f"Connection refused or unreachable: {e}"}
+            return {"success": False, "error": f"Connection refused or unreachable for {clean_ip}:{clean_port}. Check IP/Domain and firewall."}
         except Exception as e:
             return {"success": False, "error": str(e)}
 

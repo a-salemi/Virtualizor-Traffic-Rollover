@@ -233,13 +233,21 @@ def get_node_settings(user: User = Depends(get_current_user), db: Session = Depe
 
 @app.post("/api/settings/node")
 def save_node_settings(payload: NodeSettingsRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    from backend.database import set_setting
-    set_setting(db, "virtualizor_ip", payload.ip.strip())
-    set_setting(db, "virtualizor_port", str(payload.port))
-    set_setting(db, "virtualizor_api_key", payload.api_key.strip())
-    set_setting(db, "virtualizor_api_pass", payload.api_pass.strip())
+    from backend.database import set_setting, get_setting
+    from backend.virtualizor_api import clean_host_and_port
     
-    virtualizor_client.update_credentials(payload.ip, payload.port, payload.api_key, payload.api_pass)
+    clean_ip, clean_port = clean_host_and_port(payload.ip, payload.port)
+    set_setting(db, "virtualizor_ip", clean_ip)
+    set_setting(db, "virtualizor_port", str(clean_port))
+    set_setting(db, "virtualizor_api_key", payload.api_key.strip())
+    
+    if payload.api_pass and payload.api_pass.strip():
+        final_pass = payload.api_pass.strip()
+        set_setting(db, "virtualizor_api_pass", final_pass)
+    else:
+        final_pass = get_setting(db, "virtualizor_api_pass", virtualizor_client.api_pass)
+    
+    virtualizor_client.update_credentials(clean_ip, clean_port, payload.api_key, final_pass)
     return {"success": True, "message": "Virtualizor credentials saved successfully!"}
 
 @app.post("/api/settings/test-connection")

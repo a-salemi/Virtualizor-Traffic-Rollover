@@ -306,13 +306,19 @@ async function loadSettings() {
             document.getElementById("settingNodePort").value = data.port || 4085;
             document.getElementById("settingApiKey").value = data.api_key || "";
             
+            const passInput = document.getElementById("settingApiPass");
             const badge = document.getElementById("nodeStatusBadge");
-            if (badge) {
-                if (data.is_configured) {
+
+            if (data.is_configured) {
+                if (passInput) passInput.placeholder = "•••••••••••••••• (Saved - Leave blank to keep)";
+                if (badge) {
                     badge.style.borderColor = "var(--accent-emerald)";
                     badge.style.color = "var(--accent-emerald)";
                     badge.textContent = t("status_online");
-                } else {
+                }
+            } else {
+                if (passInput) passInput.placeholder = "Enter API Password";
+                if (badge) {
                     badge.style.borderColor = "var(--accent-rose)";
                     badge.style.color = "var(--accent-rose)";
                     badge.textContent = t("status_offline");
@@ -324,15 +330,23 @@ async function loadSettings() {
     }
 }
 
+function cleanInputHost(raw) {
+    if (!raw) return "";
+    return raw.trim().replace(/^https?:\/\//i, '').split('/')[0].split(':')[0].trim();
+}
+
 async function handleSaveSettings(e) {
     e.preventDefault();
     const btn = document.getElementById("btnSaveConn");
     btn.disabled = true;
     
-    const ip = document.getElementById("settingNodeIp").value;
+    let rawIp = document.getElementById("settingNodeIp").value;
+    const ip = cleanInputHost(rawIp);
+    document.getElementById("settingNodeIp").value = ip;
+
     const port = parseInt(document.getElementById("settingNodePort").value) || 4085;
-    const apiKey = document.getElementById("settingApiKey").value;
-    const apiPass = document.getElementById("settingApiPass").value;
+    const apiKey = document.getElementById("settingApiKey").value.trim();
+    const apiPass = document.getElementById("settingApiPass").value.trim();
 
     try {
         const res = await fetch("/api/settings/node", {
@@ -360,10 +374,13 @@ async function testNodeSettings() {
     btn.disabled = true;
     showToast("Testing connection to Virtualizor...", "info");
 
-    const ip = document.getElementById("settingNodeIp").value;
+    let rawIp = document.getElementById("settingNodeIp").value;
+    const ip = cleanInputHost(rawIp);
+    document.getElementById("settingNodeIp").value = ip;
+
     const port = parseInt(document.getElementById("settingNodePort").value) || 4085;
-    const apiKey = document.getElementById("settingApiKey").value;
-    const apiPass = document.getElementById("settingApiPass").value;
+    const apiKey = document.getElementById("settingApiKey").value.trim();
+    const apiPass = document.getElementById("settingApiPass").value.trim();
 
     try {
         const res = await fetch("/api/settings/test-connection", {
