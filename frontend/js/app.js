@@ -95,6 +95,12 @@ async function checkAuth() {
 
 async function handleLogin(e) {
     e.preventDefault();
+    const btn = document.getElementById("btnLoginSubmit");
+    const origText = btn ? btn.textContent : "Authorize Session";
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Authorizing...";
+    }
     const u = document.getElementById("loginUsername").value;
     const p = document.getElementById("loginPassword").value;
 
@@ -109,11 +115,17 @@ async function handleLogin(e) {
             document.getElementById("authView").style.display = "none";
             showToast(t("toast_login_success"), "success");
             loadDashboard();
+            fetchTelemetry();
         } else {
             showToast(data.detail || t("login_err"), "error");
         }
     } catch (err) {
         showToast(t("login_err"), "error");
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = origText;
+        }
     }
 }
 
@@ -137,7 +149,10 @@ async function loadDashboard() {
             document.getElementById("statRemainingBw").textContent = stats.total_remaining_bw_gb;
             const sumActive = document.getElementById("sumActiveVps");
             if (sumActive) sumActive.textContent = stats.total_vps;
+            const sumPanels = document.getElementById("sumConnectedPanels");
+            if (sumPanels) sumPanels.textContent = stats.total_panels || 1;
         }
+        fetchTelemetry();
     } catch (e) {
         console.error("Dashboard load error", e);
     }
@@ -298,6 +313,7 @@ function switchTab(tab) {
     
     const dashTab = document.getElementById("tabDashboard");
     const vpsTab = document.getElementById("tabVps");
+    const panelsTab = document.getElementById("tabPanels");
     const logsTab = document.getElementById("tabLogs");
     const settingsTab = document.getElementById("tabSettings");
     const pageHeading = document.getElementById("pageHeading");
@@ -308,6 +324,7 @@ function switchTab(tab) {
     // Hide all tabs
     if (dashTab) dashTab.style.display = "none";
     if (vpsTab) vpsTab.style.display = "none";
+    if (panelsTab) panelsTab.style.display = "none";
     if (logsTab) logsTab.style.display = "none";
     if (settingsTab) settingsTab.style.display = "none";
 
@@ -322,6 +339,11 @@ function switchTab(tab) {
         pageHeading.textContent = t("vps_title");
         if (crumbCurrent) crumbCurrent.textContent = t("breadcrumb_vps");
         loadVPSList();
+    } else if (tab === "panels") {
+        if (panelsTab) panelsTab.style.display = "block";
+        pageHeading.textContent = t("panels_title");
+        if (crumbCurrent) crumbCurrent.textContent = t("breadcrumb_panels");
+        loadPanels();
     } else if (tab === "logs") {
         if (logsTab) logsTab.style.display = "block";
         pageHeading.textContent = t("logs_title");
@@ -544,40 +566,42 @@ async function fetchTelemetry() {
         const data = await res.json();
 
         // CPU
-        const cpuPct = data.cpu_usage_pct || 0;
-        document.getElementById("telemCpuPct").textContent = `${cpuPct.toFixed(1)}%`;
-        document.getElementById("telemCpuBar").style.width = `${Math.min(100, cpuPct)}%`;
-        document.getElementById("telemCpuCores").textContent = `${data.cpu_count || 1} ${t('telemetry_cores')}`;
-        if (data.load_average && data.load_average.length >= 3) {
-            document.getElementById("telemCpuLoad").textContent = `${t('telemetry_load')}: ${data.load_average.join(" / ")}`;
+        const cpuPct = (data.cpu && data.cpu.percent !== undefined) ? data.cpu.percent : (data.cpu_usage_pct || 0);
+        document.getElementById("telemCpuPct").textContent = `${Number(cpuPct).toFixed(1)}%`;
+        document.getElementById("telemCpuBar").style.width = `${Math.min(100, Math.max(0, cpuPct))}%`;
+        const cores = (data.cpu && data.cpu.cores) || data.cpu_count || 1;
+        document.getElementById("telemCpuCores").textContent = `${cores} ${t('telemetry_cores')}`;
+        const loadArr = (data.cpu && data.cpu.load_avg) || data.load_average;
+        if (loadArr && loadArr.length >= 3) {
+            document.getElementById("telemCpuLoad").textContent = `${t('telemetry_load')}: ${loadArr.join(" / ")}`;
         }
 
         // RAM
-        const ram = data.ram || {};
-        const ramPct = ram.pct || 0;
-        document.getElementById("telemRamPct").textContent = `${ramPct.toFixed(1)}%`;
-        document.getElementById("telemRamBar").style.width = `${Math.min(100, ramPct)}%`;
+        const ram = data.memory || data.ram || {};
+        const ramPct = ram.percent !== undefined ? ram.percent : (ram.pct || 0);
+        document.getElementById("telemRamPct").textContent = `${Number(ramPct).toFixed(1)}%`;
+        document.getElementById("telemRamBar").style.width = `${Math.min(100, Math.max(0, ramPct))}%`;
         document.getElementById("telemRamUsed").textContent = `${ram.used_gb || 0} GB / ${ram.total_gb || 0} GB`;
-        document.getElementById("telemRamSubPct").textContent = `${ramPct.toFixed(1)}%`;
+        document.getElementById("telemRamSubPct").textContent = `${Number(ramPct).toFixed(1)}%`;
 
         // SWAP
         const swap = data.swap || {};
-        const swapPct = swap.pct || 0;
-        document.getElementById("telemSwapPct").textContent = `${swapPct.toFixed(1)}%`;
-        document.getElementById("telemSwapBar").style.width = `${Math.min(100, swapPct)}%`;
+        const swapPct = swap.percent !== undefined ? swap.percent : (swap.pct || 0);
+        document.getElementById("telemSwapPct").textContent = `${Number(swapPct).toFixed(1)}%`;
+        document.getElementById("telemSwapBar").style.width = `${Math.min(100, Math.max(0, swapPct))}%`;
         document.getElementById("telemSwapUsed").textContent = `${swap.used_gb || 0} GB / ${swap.total_gb || 0} GB`;
-        document.getElementById("telemSwapSubPct").textContent = `${swapPct.toFixed(1)}%`;
+        document.getElementById("telemSwapSubPct").textContent = `${Number(swapPct).toFixed(1)}%`;
 
         // DISK
         const disk = data.disk || {};
-        const diskPct = disk.pct || 0;
-        document.getElementById("telemDiskPct").textContent = `${diskPct.toFixed(1)}%`;
-        document.getElementById("telemDiskBar").style.width = `${Math.min(100, diskPct)}%`;
+        const diskPct = disk.percent !== undefined ? disk.percent : (disk.pct || 0);
+        document.getElementById("telemDiskPct").textContent = `${Number(diskPct).toFixed(1)}%`;
+        document.getElementById("telemDiskBar").style.width = `${Math.min(100, Math.max(0, diskPct))}%`;
         document.getElementById("telemDiskUsed").textContent = `${disk.used_gb || 0} GB / ${disk.total_gb || 0} GB`;
-        document.getElementById("telemDiskSubPct").textContent = `${diskPct.toFixed(1)}%`;
+        document.getElementById("telemDiskSubPct").textContent = `${Number(diskPct).toFixed(1)}%`;
 
         // Uptime & Counts
-        document.getElementById("telemUptime").textContent = data.uptime_formatted || "0d 0h 0m";
+        document.getElementById("telemUptime").textContent = data.uptime || data.uptime_formatted || "0d 0h 0m";
         if (document.getElementById("sumActiveVps")) {
             document.getElementById("sumActiveVps").textContent = allVpsData.length || 0;
         }
@@ -776,3 +800,235 @@ document.addEventListener("DOMContentLoaded", () => {
     initClock();
     fetchTelemetry();
 });
+
+
+// --- Multi-Panel Management Engine ---
+let allPanelsData = [];
+
+async function loadPanels() {
+    try {
+        const res = await fetch("/api/panels");
+        if (!res.ok) return;
+        const data = await res.json();
+        allPanelsData = data.panels || [];
+        renderPanels(allPanelsData);
+        const sumPanels = document.getElementById("sumConnectedPanels");
+        if (sumPanels) sumPanels.textContent = allPanelsData.length || 1;
+    } catch (e) {
+        console.error("Error loading panels", e);
+    }
+}
+
+function renderPanels(panels) {
+    const tbody = document.getElementById("panelsTableBody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    if (!panels || panels.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">No panels configured yet. Click "+ Add Panel" to connect a node.</td></tr>`;
+        return;
+    }
+
+    panels.forEach(p => {
+        const tr = document.createElement("tr");
+        const isOnline = p.last_status === "online";
+        const badgeColor = isOnline ? "var(--accent-emerald)" : "var(--accent-rose)";
+        const statusText = isOnline ? t("status_online") : t("status_offline");
+
+        tr.innerHTML = `
+            <td data-label="${t('th_panel_name')}">
+                <div style="font-weight: 700;">${p.name}</div>
+                <div class="num-mono" style="font-size: 0.78rem; color: var(--text-muted);">ID: #${p.id}</div>
+            </td>
+            <td data-label="${t('th_panel_ip')}">
+                <div class="num-mono" style="font-weight: 600;">${p.ip}</div>
+                <div class="num-mono" style="font-size: 0.78rem; color: var(--text-muted);">Port: ${p.port}</div>
+            </td>
+            <td data-label="${t('th_panel_status')}">
+                <span class="badge-tag" style="border-color: ${badgeColor}; color: ${badgeColor};">● ${statusText}</span>
+            </td>
+            <td data-label="${t('th_panel_vps')}">
+                <span class="badge-tag num-mono" style="font-weight: 700;">${p.vps_count} VPS</span>
+            </td>
+            <td data-label="${t('th_panel_last_sync')}">
+                <span class="num-mono" style="font-size: 0.8rem; color: var(--text-secondary);">${p.last_sync}</span>
+            </td>
+            <td data-label="${t('th_actions')}">
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <button class="glass-btn" onclick="testSpecificPanel(${p.id})" style="padding: 5px 10px; font-size: 0.78rem;" title="Test Connection">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    </button>
+                    <button class="glass-btn glass-btn-primary" onclick="syncSpecificPanel(${p.id})" style="padding: 5px 10px; font-size: 0.78rem;" title="Sync Panel">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    </button>
+                    <button class="glass-btn" onclick="openPanelModal(${p.id})" style="padding: 5px 10px; font-size: 0.78rem;" title="Edit">
+                        <span>✏️</span>
+                    </button>
+                    <button class="glass-btn" onclick="deleteSpecificPanel(${p.id})" style="padding: 5px 10px; font-size: 0.78rem; color: var(--accent-rose);" title="Delete">
+                        <span>🗑️</span>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function openPanelModal(panelId = null) {
+    const title = document.getElementById("panelModalTitle");
+    const idInput = document.getElementById("panelIdInput");
+    const nameInput = document.getElementById("panelNameInput");
+    const ipInput = document.getElementById("panelIpInput");
+    const portInput = document.getElementById("panelPortInput");
+    const keyInput = document.getElementById("panelApiKeyInput");
+    const passInput = document.getElementById("panelApiPassInput");
+
+    if (panelId) {
+        const p = allPanelsData.find(item => item.id === panelId);
+        if (p) {
+            if (title) title.textContent = t("modal_panel_edit_title");
+            idInput.value = p.id;
+            nameInput.value = p.name;
+            ipInput.value = p.ip;
+            portInput.value = p.port;
+            keyInput.value = p.api_key;
+            passInput.value = "";
+            passInput.placeholder = "•••••••• (Leave blank to keep current)";
+        }
+    } else {
+        if (title) title.textContent = t("modal_panel_title");
+        idInput.value = "";
+        nameInput.value = "";
+        ipInput.value = "";
+        portInput.value = 4085;
+        keyInput.value = "";
+        passInput.value = "";
+        passInput.placeholder = "Enter API Password";
+    }
+
+    document.getElementById("panelModal").classList.add("active");
+}
+
+function closePanelModal() {
+    document.getElementById("panelModal").classList.remove("active");
+}
+
+async function handleSavePanel(e) {
+    e.preventDefault();
+    const btn = document.getElementById("btnModalSavePanel");
+    btn.disabled = true;
+
+    const id = document.getElementById("panelIdInput").value;
+    const name = document.getElementById("panelNameInput").value.trim();
+    const ip = cleanInputHost(document.getElementById("panelIpInput").value);
+    const port = parseInt(document.getElementById("panelPortInput").value) || 4085;
+    const api_key = document.getElementById("panelApiKeyInput").value.trim();
+    const api_pass = document.getElementById("panelApiPassInput").value.trim();
+
+    try {
+        let res;
+        if (id) {
+            res = await fetch(`/api/panels/${id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, ip, port, api_key, api_pass: api_pass || undefined })
+            });
+        } else {
+            res = await fetch("/api/panels", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, ip, port, api_key, api_pass })
+            });
+        }
+        const data = await res.json();
+        if (res.ok && data.success) {
+            closePanelModal();
+            showToast("Panel configuration saved successfully!", "success");
+            loadPanels();
+        } else {
+            showToast(data.detail || "Error saving panel", "error");
+        }
+    } catch (err) {
+        showToast("Error saving panel", "error");
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function testModalPanel() {
+    const btn = document.getElementById("btnModalTestPanel");
+    btn.disabled = true;
+    showToast("Testing connection...", "info");
+
+    const ip = cleanInputHost(document.getElementById("panelIpInput").value);
+    const port = parseInt(document.getElementById("panelPortInput").value) || 4085;
+    const api_key = document.getElementById("panelApiKeyInput").value.trim();
+    const api_pass = document.getElementById("panelApiPassInput").value.trim();
+
+    try {
+        const res = await fetch("/api/settings/test-connection", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ip, port, api_key, api_pass })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`${t("toast_test_success")} (${data.vps_count} VPS found)`, "success");
+        } else {
+            showToast(`${t("toast_test_failed")}: ${data.error || "Unreachable"}`, "error", 6000);
+        }
+    } catch (err) {
+        showToast(`${t("toast_test_failed")}: ${err.message}`, "error");
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function testSpecificPanel(panelId) {
+    showToast("Testing connection to node...", "info");
+    try {
+        const res = await fetch(`/api/panels/${panelId}/test`, { method: "POST" });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`${t("toast_test_success")} (${data.vps_count} VPS online)`, "success");
+            loadPanels();
+        } else {
+            showToast(`${t("toast_test_failed")}: ${data.error || "Offline"}`, "error");
+        }
+    } catch (err) {
+        showToast("Test request failed", "error");
+    }
+}
+
+async function syncSpecificPanel(panelId) {
+    showToast("Syncing Virtualizor panel...", "info");
+    try {
+        const res = await fetch(`/api/panels/${panelId}/sync`, { method: "POST" });
+        const data = await res.json();
+        if (data.status === "success") {
+            showToast(`Panel synced successfully! (${data.total_vps} VPS)`, "success");
+            loadPanels();
+            loadDashboard();
+        } else {
+            showToast(data.message || "Sync failed", "error");
+        }
+    } catch (e) {
+        showToast("Sync failed", "error");
+    }
+}
+
+async function deleteSpecificPanel(panelId) {
+    if (!confirm("Are you sure you want to remove this panel connection?")) return;
+    try {
+        const res = await fetch(`/api/panels/${panelId}`, { method: "DELETE" });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            showToast("Panel removed", "info");
+            loadPanels();
+        } else {
+            showToast("Error deleting panel", "error");
+        }
+    } catch (e) {
+        showToast("Error deleting panel", "error");
+    }
+}

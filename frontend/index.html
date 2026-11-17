@@ -74,6 +74,12 @@
                     </a>
                 </li>
                 <li>
+                    <a href="#panels" class="nav-link" id="navPanels" onclick="switchTab('panels')">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                        <span data-i18n="nav_panels">Panels</span>
+                    </a>
+                </li>
+                <li>
                     <a href="#logs" class="nav-link" id="navLogs" onclick="switchTab('logs')">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                         <span data-i18n="nav_logs">Audit Logs</span>
@@ -343,6 +349,39 @@
                     </thead>
                     <tbody id="vpsTableBody">
                         <!-- Populated dynamically via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- PANELS TAB -->
+        <section id="tabPanels" style="display: none;">
+            <div class="table-container">
+                <div class="table-header-bar">
+                    <div>
+                        <h3 style="font-size: 1.15rem; font-weight: 700;" data-i18n="panels_title">Connected Virtualizor Panels</h3>
+                        <p style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px;" data-i18n="panels_subtitle">
+                            Manage connected Virtualizor master/slave nodes, credentials, and connectivity
+                        </p>
+                    </div>
+                    <button class="glass-btn glass-btn-primary" onclick="openPanelModal()">
+                        <span data-i18n="btn_add_panel">+ Add Panel</span>
+                    </button>
+                </div>
+
+                <table class="vps-table" id="panelsTable">
+                    <thead>
+                        <tr>
+                            <th data-i18n="th_panel_name">Panel Name</th>
+                            <th data-i18n="th_panel_ip">Host / IP & Port</th>
+                            <th data-i18n="th_panel_status">Status</th>
+                            <th data-i18n="th_panel_vps">Synced VPS</th>
+                            <th data-i18n="th_panel_last_sync">Last Sync</th>
+                            <th data-i18n="th_actions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="panelsTableBody">
+                        <!-- Populated dynamically -->
                     </tbody>
                 </table>
             </div>
@@ -632,6 +671,55 @@
                 <div style="display: flex; justify-content: flex-end; gap: 10px;">
                     <button type="button" class="glass-btn" onclick="closePasswordModal()" data-i18n="modal_btn_cancel">Cancel</button>
                     <button type="submit" class="glass-btn glass-btn-primary" data-i18n="btn_save_pw">Update Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add / Edit Panel Modal -->
+    <div class="modal-overlay" id="panelModal">
+        <div class="modal-card" style="max-width: 520px;">
+            <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 6px;" id="panelModalTitle" data-i18n="modal_panel_title">Add Virtualizor Node</h3>
+            <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 20px;" data-i18n="modal_panel_desc">
+                Configure Virtualizor Master/Slave API credentials.
+            </p>
+
+            <form onsubmit="handleSavePanel(event)">
+                <input type="hidden" id="panelIdInput">
+                <div style="margin-bottom: 14px;">
+                    <label style="display: block; font-size: 0.82rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="th_panel_name">Panel Name</label>
+                    <input type="text" id="panelNameInput" class="glass-input" style="width: 100%;" placeholder="e.g. Shatel Datacenter Node" required>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 14px;">
+                    <div>
+                        <label style="display: block; font-size: 0.82rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="label_node_ip">Server IP or Domain</label>
+                        <input type="text" id="panelIpInput" class="glass-input num-mono" style="width: 100%;" placeholder="e.g. 185.120.45.67" required>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.82rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="label_node_port">API Port</label>
+                        <input type="number" id="panelPortInput" class="glass-input num-mono" style="width: 100%;" value="4085" required>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <label style="display: block; font-size: 0.82rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="label_api_key">Virtualizor API Key</label>
+                    <input type="text" id="panelApiKeyInput" class="glass-input num-mono" style="width: 100%;" placeholder="Enter Virtualizor API Key" required>
+                </div>
+
+                <div style="margin-bottom: 22px;">
+                    <label style="display: block; font-size: 0.82rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="label_api_pass">Virtualizor API Password</label>
+                    <input type="password" id="panelApiPassInput" class="glass-input num-mono" style="width: 100%;" placeholder="•••••••• (Leave blank to keep current)">
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <button type="button" class="glass-btn" onclick="testModalPanel()" id="btnModalTestPanel">
+                        <span data-i18n="btn_test_conn">Test Connection</span>
+                    </button>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" class="glass-btn" onclick="closePanelModal()" data-i18n="modal_btn_cancel">Cancel</button>
+                        <button type="submit" class="glass-btn glass-btn-primary" id="btnModalSavePanel" data-i18n="btn_save_panel">Save Panel</button>
+                    </div>
                 </div>
             </form>
         </div>

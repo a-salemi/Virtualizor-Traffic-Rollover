@@ -25,7 +25,7 @@ from backend.config import (
     PORT,
     HOST
 )
-from backend.database import init_db, get_db, SessionLocal, User, VPSTraffic, AuditLog
+from backend.database import init_db, get_db, SessionLocal, User, VPSTraffic, AuditLog, VirtualizorPanel
 from backend.virtualizor_api import virtualizor_client
 from backend.guardian import guardian
 
@@ -199,17 +199,136 @@ def system_status(user: User = Depends(get_current_user), db: Session = Depends(
     total_managed_bw = sum(r.total_purchased_gb for r in records)
     total_used_bw = sum(r.current_month_used_gb for r in records)
     total_remaining_bw = sum(r.remaining_gb for r in records)
+    total_panels = db.query(VirtualizorPanel).count()
 
     return {
         "status": "online",
         "api_configured": virtualizor_client.is_configured(),
         "total_vps": total_vps,
+        "total_panels": total_panels or (1 if virtualizor_client.is_configured() else 0),
         "total_managed_bw_gb": round(total_managed_bw, 2),
         "total_used_bw_gb": round(total_used_bw, 2),
         "total_remaining_bw_gb": round(total_remaining_bw, 2),
         "poll_interval_minutes": POLL_INTERVAL_MINUTES,
         "port": PORT
     }
+
+# --- Multi-Panel Virtualizor Management Endpoints ---
+class PanelCreateRequest(BaseModel):
+    name: str
+    ip: str
+    port: int = 4085
+    api_key: str
+    api_pass: str
+
+class PanelUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    ip: Optional[str] = None
+    port: Optional[int] = None
+    api_key: Optional[str] = None
+    api_pass: Optional[str] = None
+
+@app.get("/api/panels")
+def list_panels(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    panels = db.query(VirtualizorPanel).all()
+    if not panels and virtualizor_client.is_configured():
+        p = VirtualizorPanel(
+            name="Primary Node",
+            ip=virtualizor_client.ip,
+            port=virtualizor_client.port or 4085,
+            api_key=virtualizor_client.api_key or "",
+            api_pass=virtualizor_client.api_pass or "",
+            is_active=True,
+            last_status="online",
+            vps_count=db.query(VPSTraffic).count()
+        )
+        db.add(p)
+        db.commit()
+        panels = [p]
+    return {"panels": [p.to_dict() for p in panels]}
+
+@app.post("/api/panels")
+def create_panel(payload: PanelCreateRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from backend.virtualizor_api import clean_host_and_port
+    clean_ip, clean_port = clean_host_and_port(payload.ip, payload.port)
+    test_res = virtualizor_client.test_connection_params(clean_ip, clean_port, payload.api_key, payload.api_pass)
+    status_str = "online" if test_res.get("success") else "error"
+    vps_cnt = test_res.get("vps_count", 0)
+
+    panel = VirtualizorPanel(
+        name=payload.name.strip() or clean_ip,
+        ip=clean_ip,
+        port=clean_port,
+        api_key=payload.api_key.strip(),
+        api_pass=payload.api_pass.strip(),
+        last_status=status_str,
+        vps_count=vps_cnt,
+        last_sync=datetime.utcnow() if test_res.get("success") else None
+    )
+    db.add(panel)
+    db.commit()
+    db.refresh(panel)
+    return {"success": True, "panel": panel.to_dict(), "test_result": test_res}
+
+@app.put("/api/panels/{panel_id}")
+def update_panel(panel_id: int, payload: PanelUpdateRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from backend.virtualizor_api import clean_host_and_port
+    panel = db.query(VirtualizorPanel).filter(VirtualizorPanel.id == panel_id).first()
+    if not panel:
+        raise HTTPException(status_code=404, detail="Panel not found.")
+    if payload.name:
+        panel.name = payload.name.strip()
+    if payload.ip:
+        p_val = payload.port or panel.port
+        clean_ip, clean_port = clean_host_and_port(payload.ip, p_val)
+        panel.ip = clean_ip
+        panel.port = clean_port
+    elif payload.port:
+        panel.port = payload.port
+    if payload.api_key:
+        panel.api_key = payload.api_key.strip()
+    if payload.api_pass and payload.api_pass.strip():
+        panel.api_pass = payload.api_pass.strip()
+
+    db.commit()
+    return {"success": True, "panel": panel.to_dict()}
+
+@app.delete("/api/panels/{panel_id}")
+def delete_panel(panel_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    panel = db.query(VirtualizorPanel).filter(VirtualizorPanel.id == panel_id).first()
+    if not panel:
+        raise HTTPException(status_code=404, detail="Panel not found.")
+    db.delete(panel)
+    db.commit()
+    return {"success": True, "message": "Panel deleted successfully."}
+
+@app.post("/api/panels/{panel_id}/test")
+def test_panel_connection(panel_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    panel = db.query(VirtualizorPanel).filter(VirtualizorPanel.id == panel_id).first()
+    if not panel:
+        raise HTTPException(status_code=404, detail="Panel not found.")
+    res = virtualizor_client.test_connection_params(panel.ip, panel.port, panel.api_key, panel.api_pass)
+    panel.last_status = "online" if res.get("success") else "error"
+    if res.get("success"):
+        panel.vps_count = res.get("vps_count", panel.vps_count)
+    db.commit()
+    return res
+
+@app.post("/api/panels/{panel_id}/sync")
+def sync_specific_panel(panel_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    panel = db.query(VirtualizorPanel).filter(VirtualizorPanel.id == panel_id).first()
+    if not panel:
+        raise HTTPException(status_code=404, detail="Panel not found.")
+    virtualizor_client.update_credentials(panel.ip, panel.port, panel.api_key, panel.api_pass)
+    res = guardian.sync_and_check(db)
+    panel.last_sync = datetime.utcnow()
+    if res.get("status") == "success":
+        panel.last_status = "online"
+        panel.vps_count = res.get("total_vps", panel.vps_count)
+    else:
+        panel.last_status = "error"
+    db.commit()
+    return res
 
 # --- Virtualizor Node Management Endpoints ---
 class NodeSettingsRequest(BaseModel):

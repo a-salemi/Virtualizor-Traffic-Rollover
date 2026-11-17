@@ -79,6 +79,36 @@ class NodeSetting(Base):
     key = Column(String(64), primary_key=True, index=True)
     value = Column(Text, default="")
 
+class VirtualizorPanel(Base):
+    __tablename__ = "virtualizor_panels"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(64), nullable=False)
+    ip = Column(String(128), nullable=False)
+    port = Column(Integer, default=4085)
+    api_key = Column(String(128), nullable=False)
+    api_pass = Column(String(256), nullable=False)
+    is_active = Column(Boolean, default=True)
+    last_status = Column(String(32), default="unknown") # online, offline, error
+    last_sync = Column(DateTime, nullable=True)
+    vps_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "ip": self.ip,
+            "port": self.port,
+            "api_key": self.api_key,
+            "api_pass_masked": "••••••••" if self.api_pass else "",
+            "is_active": self.is_active,
+            "last_status": self.last_status,
+            "last_sync": self.last_sync.strftime("%Y-%m-%d %H:%M:%S") if self.last_sync else "Never",
+            "vps_count": self.vps_count,
+            "created_at": self.created_at.strftime("%Y-%m-%d %H:%M:%S") if self.created_at else ""
+        }
+
 def get_setting(db, key: str, default: str = "") -> str:
     item = db.query(NodeSetting).filter(NodeSetting.key == key).first()
     return item.value if item and item.value is not None else default
