@@ -162,10 +162,31 @@ function renderVPS(list) {
     list.forEach(vps => {
         const tr = document.createElement("tr");
 
+        const isUnlimited = vps.is_unlimited || vps.current_virtualizor_limit_gb === "Unlimited" || vps.total_purchased_gb === "Unlimited" || vps.current_virtualizor_limit_gb === 0;
+
+        const purchasedHtml = isUnlimited 
+            ? `<span class="badge-tag" style="border-color: var(--accent-cyan); color: var(--accent-cyan); font-weight: 600;">∞ Unlimited</span>`
+            : `<span class="num-mono" style="font-weight: 600;">${vps.total_purchased_gb}</span> <span style="font-size: 0.8rem; color: var(--text-muted);">GB</span>`;
+
+        const limitHtml = isUnlimited
+            ? `<span class="badge-tag" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">∞ Unlimited</span>`
+            : `<span class="num-mono">${vps.current_virtualizor_limit_gb}</span> <span style="font-size: 0.8rem; color: var(--text-muted);">GB</span>`;
+
+        const remainingHtml = isUnlimited
+            ? `<span class="badge-tag" style="border-color: var(--accent-emerald); color: var(--accent-emerald); font-weight: 700;">∞ Unlimited</span>`
+            : `<span class="num-mono" style="color: var(--accent-emerald); font-weight: 700;">${vps.remaining_gb}</span> <span style="font-size: 0.8rem; color: var(--text-muted);">GB</span>`;
+
         const progressPercent = Math.min(100, Math.max(0, vps.used_percentage || 0));
         let progressColor = "var(--gradient-brand)";
         if (progressPercent > 85) progressColor = "var(--accent-rose)";
         else if (progressPercent > 65) progressColor = "var(--accent-amber)";
+
+        const progressHtml = isUnlimited
+            ? `<div style="font-size: 0.8rem; color: var(--text-muted);">∞ No Quota</div>`
+            : `<div style="font-size: 0.8rem;" class="num-mono">${progressPercent}%</div>
+               <div class="progress-track">
+                   <div class="progress-fill" style="width: ${progressPercent}%; background: ${progressColor};"></div>
+               </div>`;
 
         tr.innerHTML = `
             <td data-label="${t('th_vpsid')}"><span class="badge-tag num-mono">#${vps.vpsid}</span></td>
@@ -173,16 +194,11 @@ function renderVPS(list) {
                 <div style="font-weight: 600;">${vps.hostname}</div>
                 <div class="num-mono" style="font-size: 0.78rem; color: var(--text-muted);">${vps.ip || "No IP assigned"}</div>
             </td>
-            <td data-label="${t('th_purchased')}"><span class="num-mono" style="font-weight: 600;">${vps.total_purchased_gb}</span> <span style="font-size: 0.8rem; color: var(--text-muted);">GB</span></td>
-            <td data-label="${t('th_current_limit')}"><span class="num-mono">${vps.current_virtualizor_limit_gb}</span> <span style="font-size: 0.8rem; color: var(--text-muted);">GB</span></td>
+            <td data-label="${t('th_purchased')}">${purchasedHtml}</td>
+            <td data-label="${t('th_current_limit')}">${limitHtml}</td>
             <td data-label="${t('th_used')}"><span class="num-mono" style="color: var(--accent-rose);">${vps.current_month_used_gb}</span> <span style="font-size: 0.8rem; color: var(--text-muted);">GB</span></td>
-            <td data-label="${t('th_remaining')}"><span class="num-mono" style="color: var(--accent-emerald); font-weight: 700;">${vps.remaining_gb}</span> <span style="font-size: 0.8rem; color: var(--text-muted);">GB</span></td>
-            <td data-label="${t('th_progress')}">
-                <div style="font-size: 0.8rem;" class="num-mono">${progressPercent}%</div>
-                <div class="progress-track">
-                    <div class="progress-fill" style="width: ${progressPercent}%; background: ${progressColor};"></div>
-                </div>
-            </td>
+            <td data-label="${t('th_remaining')}">${remainingHtml}</td>
+            <td data-label="${t('th_progress')}">${progressHtml}</td>
             <td data-label="${t('th_last_rollover')}"><span class="badge-tag num-mono">${vps.last_rollover_period || "None"}</span></td>
             <td data-label="${t('th_actions')}">
                 <button class="glass-btn" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openTopupModal('${vps.vpsid}', '${vps.hostname}')">

@@ -87,6 +87,7 @@ class TrafficGuardian:
             prev_limit = rec.current_virtualizor_limit_gb
             prev_used = rec.last_known_used_gb
             last_rollover = rec.last_rollover_period
+            is_unlimited = (prev_limit <= 0 or virt_limit <= 0)
 
             # RESET DETECTION LOGIC:
             # 1. Inside rollover date window (end/start of month)
@@ -96,44 +97,58 @@ class TrafficGuardian:
             not_yet_rolled_over = (last_rollover != current_month_tag)
 
             if is_rollover_window and traffic_dropped and not_yet_rolled_over:
-                # Virtualizor just reset this VPS! Calculate actual remaining bandwidth:
-                remaining = max(0.0, round(prev_limit - prev_used, 2))
-                new_limit = max(0.05, remaining) # Safety floor
+                if is_unlimited:
+                    # Unlimited server: Do NOT modify bandwidth limit! Keep at 0 (Unlimited)
+                    logger.info(f"[ROLLOVER SKIPPED] VPS {vpsid} ({hostname}) is UNLIMITED. Limit remains 0.")
+                    rec.current_virtualizor_limit_gb = 0.0
+                    rec.current_month_used_gb = virt_used
+                    rec.last_known_used_gb = virt_used
+                    rec.remaining_gb = 0.0
+                    rec.last_rollover_period = current_month_tag
+                else:
+                    # Metered/Prepaid server: Calculate actual remaining bandwidth:
+                    remaining = max(0.0, round(prev_limit - prev_used, 2))
+                    new_limit = max(0.05, remaining) # Safety floor
 
-                logger.info(
-                    f"[ROLLOVER DETECTED] VPS {vpsid} ({hostname}): "
-                    f"Previous Limit: {prev_limit}GB, Consumed: {prev_used}GB. "
-                    f"New Rollover Limit: {new_limit}GB"
-                )
+                    logger.info(
+                        f"[ROLLOVER DETECTED] VPS {vpsid} ({hostname}): "
+                        f"Previous Limit: {prev_limit}GB, Consumed: {prev_used}GB. "
+                        f"New Rollover Limit: {new_limit}GB"
+                    )
 
-                # Push updated limit to Virtualizor node
-                success = virtualizor_client.update_vps_bandwidth(vpsid, new_limit)
+                    # Push updated limit to Virtualizor node
+                    success = virtualizor_client.update_vps_bandwidth(vpsid, new_limit)
 
-                audit = AuditLog(
-                    event_type="ROLLOVER",
-                    vpsid=vpsid,
-                    message=f"Automatic rollover applied. Remaining bandwidth set to {new_limit} GB (Was: {prev_limit} GB, Used: {prev_used} GB).",
-                    details=json.dumps({
-                        "prev_limit_gb": prev_limit,
-                        "prev_used_gb": prev_used,
-                        "new_limit_gb": new_limit,
-                        "api_success": success
-                    })
-                )
-                db.add(audit)
+                    audit = AuditLog(
+                        event_type="ROLLOVER",
+                        vpsid=vpsid,
+                        message=f"Automatic rollover applied. Remaining bandwidth set to {new_limit} GB (Was: {prev_limit} GB, Used: {prev_used} GB).",
+                        details=json.dumps({
+                            "prev_limit_gb": prev_limit,
+                            "prev_used_gb": prev_used,
+                            "new_limit_gb": new_limit,
+                            "api_success": success
+                        })
+                    )
+                    db.add(audit)
 
-                rec.current_virtualizor_limit_gb = new_limit
-                rec.current_month_used_gb = virt_used
-                rec.last_known_used_gb = virt_used
-                rec.remaining_gb = new_limit
-                rec.last_rollover_period = current_month_tag
-                rollover_count += 1
+                    rec.current_virtualizor_limit_gb = new_limit
+                    rec.current_month_used_gb = virt_used
+                    rec.last_known_used_gb = virt_used
+                    rec.remaining_gb = new_limit
+                    rec.last_rollover_period = current_month_tag
+                    rollover_count += 1
             else:
                 # Normal ongoing operation: Keep used metrics synchronized
                 rec.current_month_used_gb = virt_used
                 if virt_used >= rec.last_known_used_gb:
                     rec.last_known_used_gb = virt_used
-                rec.remaining_gb = max(0.0, round(rec.current_virtualizor_limit_gb - virt_used, 2))
+                
+                if is_unlimited:
+                    rec.remaining_gb = 0.0
+                    rec.current_virtualizor_limit_gb = 0.0
+                else:
+                    rec.remaining_gb = max(0.0, round(rec.current_virtualizor_limit_gb - virt_used, 2))
 
                 # If admin manually modified limit in Virtualizor panel, sync it
                 if abs(virt_limit - rec.current_virtualizor_limit_gb) > 0.1 and not not_yet_rolled_over:

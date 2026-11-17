@@ -37,15 +37,17 @@ class VPSTraffic(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def to_dict(self):
+        is_unlimited = bool(self.current_virtualizor_limit_gb <= 0 or self.total_purchased_gb <= 0)
         return {
             "vpsid": self.vpsid,
             "hostname": self.hostname,
             "ip": self.ip,
-            "total_purchased_gb": round(self.total_purchased_gb, 2),
-            "current_virtualizor_limit_gb": round(self.current_virtualizor_limit_gb, 2),
+            "is_unlimited": is_unlimited,
+            "total_purchased_gb": "Unlimited" if is_unlimited else round(self.total_purchased_gb, 2),
+            "current_virtualizor_limit_gb": "Unlimited" if is_unlimited else round(self.current_virtualizor_limit_gb, 2),
             "current_month_used_gb": round(self.current_month_used_gb, 2),
-            "remaining_gb": round(self.remaining_gb, 2),
-            "used_percentage": round((self.current_month_used_gb / self.current_virtualizor_limit_gb * 100) if self.current_virtualizor_limit_gb > 0 else 0, 1),
+            "remaining_gb": "Unlimited" if is_unlimited else round(self.remaining_gb, 2),
+            "used_percentage": 0.0 if is_unlimited else round((self.current_month_used_gb / self.current_virtualizor_limit_gb * 100) if self.current_virtualizor_limit_gb > 0 else 0, 1),
             "last_rollover_period": self.last_rollover_period,
             "is_suspended": self.is_suspended,
             "updated_at": self.updated_at.strftime("%Y-%m-%d %H:%M:%S") if self.updated_at else ""
