@@ -24,7 +24,7 @@ and automatically sets the VM's active Virtualizor limit to match their exact re
 
 - **Event-Driven Rollover Engine:** Does not blindly rely on clocks or specific timezones. Detects Virtualizor's internal reset events dynamically and safely.
 - **Bare-Metal & Native:** Runs directly on Ubuntu via an isolated Python virtual environment and a native Systemd daemon—**no Docker required**.
-- **Random Port Allocation:** Automatically allocates a randomized high port (between 22000–59000) during installation, ideal for external reverse proxies.
+- **Interactive Setup & Conflict-Free Port:** Suggests a clean 4-digit random port (checked against active network sockets) or lets you set a custom port during installation.
 - **Modern Responsive Dashboard:**
   - Dual theme with instant system preference detection (`Obsidian Dark` & `Clean Light`).
   - Bidirectional internationalization (**English LTR** & **فارسی RTL**) with Vazirmatn and Plus Jakarta Sans typography.
@@ -35,21 +35,28 @@ and automatically sets the VM's active Virtualizor limit to match their exact re
 
 ---
 
-## Quick Installation (Ubuntu / Debian)
+## One-Line Installation (Ubuntu / Debian)
 
-Clone the repository and run the automated native installer:
+Run this single command on your Virtualizor dedicated node:
+
+```bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/a-salemi/Virtualizor-Traffic-Rollover/main/install.sh)"
+```
+
+### Interactive Prompts During Installation:
+1. **Admin Username:** Enter your preferred administrator username.
+2. **Admin Password:** Enter your secure password (minimum 6 characters).
+3. **Service Port:** An available, conflict-free 4-digit port (e.g., `5842`) is automatically suggested. Simply press **Enter** to accept it, or type your own custom port.
+
+---
+
+### Manual Clone Alternative
 
 ```bash
 git clone https://github.com/a-salemi/Virtualizor-Traffic-Rollover.git /opt/virturoll
 cd /opt/virturoll
 sudo bash install.sh
 ```
-
-The installer will:
-1. Install system prerequisites (`python3`, `python3-venv`, `curl`).
-2. Create an isolated virtual environment and install dependencies.
-3. Generate a random high port and secure session secrets in `.env`.
-4. Register and start the `virturoll.service` systemd service.
 
 ---
 
@@ -106,7 +113,7 @@ sudo systemctl restart virturoll
 ## Security Recommendations
 
 1. **Virtualizor API Whitelist:** In your Virtualizor Admin Panel (`Configuration -> API Key`), restrict the API key's IP address strictly to `127.0.0.1`.
-2. **Reverse Proxy:** Route your external domain or subdomain to `http://127.0.0.1:<RANDOM_PORT>` (or through your external proxy) over HTTPS.
+2. **Reverse Proxy:** Route your external domain or subdomain to `http://127.0.0.1:<PORT>` (or through your external reverse proxy) over HTTPS.
 3. **Firewall:** If reverse proxying internally, keep the allocated random port blocked from direct public internet access using UFW or iptables.
 
 ---
