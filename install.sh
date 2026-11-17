@@ -185,7 +185,7 @@ Type=simple
 User=root
 WorkingDirectory=${INSTALL_DIR}
 EnvironmentFile=${INSTALL_DIR}/.env
-ExecStart=${INSTALL_DIR}/venv/bin/uvicorn backend.app:app --host 0.0.0.0 --port \${PORT}
+ExecStart=${INSTALL_DIR}/venv/bin/uvicorn backend.app:app --host 0.0.0.0 --port ${SELECTED_PORT}
 Restart=always
 RestartSec=5
 
