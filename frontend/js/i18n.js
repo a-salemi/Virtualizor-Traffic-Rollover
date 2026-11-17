@@ -20,7 +20,7 @@ const translations = {
         stat_node_status: "Virtualizor Status",
         
         status_online: "Connected",
-        status_offline: "Unconfigured",
+        status_offline: "Unconfigured / Offline",
         
         vps_title: "Active Virtual Machines",
         vps_search_placeholder: "Filter by Hostname, IP, or VPS ID...",
@@ -36,12 +36,6 @@ const translations = {
         th_progress: "Usage",
         th_last_rollover: "Last Rollover",
         th_actions: "Actions",
-        
-        card_purchased: "Purchased Plan:",
-        card_current_limit: "Current Limit:",
-        card_used: "Used This Cycle:",
-        card_remaining: "Actual Remaining:",
-        card_rollover: "Last Rollover Period:",
 
         modal_add_title: "Top-Up VPS Traffic",
         modal_add_desc: "Add persistent traffic bucket to VPS",
@@ -55,6 +49,15 @@ const translations = {
         th_log_vps: "Target VPS",
         th_log_message: "Message Details",
 
+        settings_title: "Virtualizor Node Connection",
+        settings_desc: "Connect to your Virtualizor dedicated node (local or remote server).",
+        label_node_ip: "Server IP or Domain",
+        label_node_port: "API Port",
+        label_api_key: "Virtualizor API Key",
+        label_api_pass: "Virtualizor API Password",
+        btn_test_conn: "Test Connection",
+        btn_save_settings: "Save & Connect",
+
         login_title: "VirtuRoll Portal",
         login_subtitle: "Secure Access to Traffic Management",
         login_user_label: "Username",
@@ -67,7 +70,10 @@ const translations = {
         toast_add_success: "Successfully added traffic to VPS.",
         toast_add_failed: "Error topping up bandwidth.",
         toast_login_success: "Authenticated successfully. Welcome back!",
-        toast_logout: "Session closed."
+        toast_logout: "Session closed.",
+        toast_settings_saved: "Virtualizor credentials saved successfully!",
+        toast_test_success: "Connection successful!",
+        toast_test_failed: "Connection failed"
     },
     fa: {
         app_title: "ویرتو رول",
@@ -75,7 +81,7 @@ const translations = {
         nav_dashboard: "داشبورد",
         nav_vps_list: "سرورهای مجازی",
         nav_logs: "گزارشات و رول‌اورها",
-        nav_settings: "تنظیمات نود",
+        nav_settings: "تنظیمات نود و API",
         nav_logout: "خروج از حساب",
         
         stat_total_vps: "تعداد کل سرورها",
@@ -85,7 +91,7 @@ const translations = {
         stat_node_status: "وضعیت اتصال نود",
         
         status_online: "متصل و فعال",
-        status_offline: "نیازمند تنظیم API",
+        status_offline: "قطع / نیازمند تنظیم",
         
         vps_title: "مدیریت ماشین‌های مجازی",
         vps_search_placeholder: "جستجو بر اساس نام سرور، آی‌پی یا شناسه...",
@@ -101,12 +107,6 @@ const translations = {
         th_progress: "درصد مصرف",
         th_last_rollover: "آخرین رول‌اور",
         th_actions: "عملیات",
-        
-        card_purchased: "بسته خریداری شده:",
-        card_current_limit: "سقف ویرچوالایزور:",
-        card_used: "مصرف این ماه:",
-        card_remaining: "مانده ترافیک واقعی:",
-        card_rollover: "آخرین رول‌اور ماهانه:",
 
         modal_add_title: "افزایش ترافیک سرور مجازی",
         modal_add_desc: "افزایش حجم بسته ترافیکی برای سرور",
@@ -120,6 +120,15 @@ const translations = {
         th_log_vps: "سرور هدف",
         th_log_message: "شرح عملیات",
 
+        settings_title: "تنظیمات اتصال به سرور ویرچوالایزور",
+        settings_desc: "مشخصات اتصال به سرور اختصاصی ویرچوالایزور (لوکال یا سرور دیگر) را وارد کنید.",
+        label_node_ip: "آی‌پی سرور یا دامنه نود",
+        label_node_port: "پورت API نود",
+        label_api_key: "کلید API Key",
+        label_api_pass: "رمز عبور API Pass",
+        btn_test_conn: "تست اتصال",
+        btn_save_settings: "ذخیره و اتصال",
+
         login_title: "ورود به ویرتو رول",
         login_subtitle: "دسترسی ایمن به سامانه مدیریت ترافیک",
         login_user_label: "نام کاربری",
@@ -132,7 +141,10 @@ const translations = {
         toast_add_success: "ترافیک سرور با موفقیت افزایش یافت.",
         toast_add_failed: "خطا در اعمال حجم جدید.",
         toast_login_success: "ورود با موفقیت انجام شد. خوش آمدید!",
-        toast_logout: "از حساب کاربری خارج شدید."
+        toast_logout: "از حساب کاربری خارج شدید.",
+        toast_settings_saved: "اطلاعات اتصال نود با موفقیت ذخیره شد!",
+        toast_test_success: "ارتباط با سرور ویرچوالایزور با موفقیت تایید شد!",
+        toast_test_failed: "خطا در برقراری اتصال با سرور"
     }
 };
 
@@ -161,7 +173,6 @@ function setLanguage(lang) {
         }
     });
 
-    // Update active state in selector
     const langSelect = document.getElementById("langSelector");
     if (langSelect) langSelect.value = lang;
 }

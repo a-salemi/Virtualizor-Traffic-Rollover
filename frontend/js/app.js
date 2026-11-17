@@ -267,21 +267,120 @@ async function submitTopup(e) {
 function switchTab(tab) {
     currentTab = tab;
     document.querySelectorAll(".nav-link").forEach(link => link.classList.remove("active"));
+    const activeNav = document.getElementById("nav" + tab.charAt(0).toUpperCase() + tab.slice(1));
+    if (activeNav) activeNav.classList.add("active");
     
     const dashTab = document.getElementById("tabDashboard");
     const logsTab = document.getElementById("tabLogs");
+    const settingsTab = document.getElementById("tabSettings");
     const pageHeading = document.getElementById("pageHeading");
 
     if (tab === "dashboard") {
         dashTab.style.display = "block";
         logsTab.style.display = "none";
+        if (settingsTab) settingsTab.style.display = "none";
         pageHeading.textContent = t("nav_dashboard");
         loadDashboard();
     } else if (tab === "logs") {
         dashTab.style.display = "none";
         logsTab.style.display = "block";
+        if (settingsTab) settingsTab.style.display = "none";
         pageHeading.textContent = t("nav_logs");
         loadLogs();
+    } else if (tab === "settings") {
+        dashTab.style.display = "none";
+        logsTab.style.display = "none";
+        if (settingsTab) settingsTab.style.display = "block";
+        pageHeading.textContent = t("nav_settings");
+        loadSettings();
+    }
+}
+
+// --- Node Settings Management ---
+async function loadSettings() {
+    try {
+        const res = await fetch("/api/settings/node");
+        if (res.ok) {
+            const data = await res.json();
+            document.getElementById("settingNodeIp").value = data.ip || "";
+            document.getElementById("settingNodePort").value = data.port || 4085;
+            document.getElementById("settingApiKey").value = data.api_key || "";
+            
+            const badge = document.getElementById("nodeStatusBadge");
+            if (badge) {
+                if (data.is_configured) {
+                    badge.style.borderColor = "var(--accent-emerald)";
+                    badge.style.color = "var(--accent-emerald)";
+                    badge.textContent = t("status_online");
+                } else {
+                    badge.style.borderColor = "var(--accent-rose)";
+                    badge.style.color = "var(--accent-rose)";
+                    badge.textContent = t("status_offline");
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error loading settings", e);
+    }
+}
+
+async function handleSaveSettings(e) {
+    e.preventDefault();
+    const btn = document.getElementById("btnSaveConn");
+    btn.disabled = true;
+    
+    const ip = document.getElementById("settingNodeIp").value;
+    const port = parseInt(document.getElementById("settingNodePort").value) || 4085;
+    const apiKey = document.getElementById("settingApiKey").value;
+    const apiPass = document.getElementById("settingApiPass").value;
+
+    try {
+        const res = await fetch("/api/settings/node", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ip, port, api_key: apiKey, api_pass: apiPass })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            showToast(t("toast_settings_saved"), "success");
+            loadSettings();
+            syncNode();
+        } else {
+            showToast(data.detail || "Error saving settings", "error");
+        }
+    } catch (err) {
+        showToast("Error saving settings", "error");
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function testNodeSettings() {
+    const btn = document.getElementById("btnTestConn");
+    btn.disabled = true;
+    showToast("Testing connection to Virtualizor...", "info");
+
+    const ip = document.getElementById("settingNodeIp").value;
+    const port = parseInt(document.getElementById("settingNodePort").value) || 4085;
+    const apiKey = document.getElementById("settingApiKey").value;
+    const apiPass = document.getElementById("settingApiPass").value;
+
+    try {
+        const res = await fetch("/api/settings/test-connection", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ip, port, api_key: apiKey, api_pass: apiPass })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`${t("toast_test_success")} (${data.vps_count} VPS found)`, "success");
+        } else {
+            showToast(`${t("toast_test_failed")}: ${data.error || "Unreachable"}`, "error", 6000);
+        }
+    } catch (err) {
+        showToast(`${t("toast_test_failed")}: ${err.message}`, "error");
+    } finally {
+        btn.disabled = false;
     }
 }
 

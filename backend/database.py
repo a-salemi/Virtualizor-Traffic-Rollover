@@ -71,6 +71,25 @@ class AuditLog(Base):
             "details": json.loads(self.details) if self.details else {}
         }
 
+class NodeSetting(Base):
+    __tablename__ = "node_settings"
+
+    key = Column(String(64), primary_key=True, index=True)
+    value = Column(Text, default="")
+
+def get_setting(db, key: str, default: str = "") -> str:
+    item = db.query(NodeSetting).filter(NodeSetting.key == key).first()
+    return item.value if item and item.value is not None else default
+
+def set_setting(db, key: str, value: str):
+    item = db.query(NodeSetting).filter(NodeSetting.key == key).first()
+    if not item:
+        item = NodeSetting(key=key, value=value)
+        db.add(item)
+    else:
+        item.value = value
+    db.commit()
+
 def init_db():
     Base.metadata.create_all(bind=engine)
 

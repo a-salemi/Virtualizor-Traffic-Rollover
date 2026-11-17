@@ -4,13 +4,11 @@
    Dynamic Island Toasts + Responsive Touch-Cards Transformation
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Vazirmatn:wght@400;500;600;700;800&display=swap');
-
 :root {
-    /* Fonts */
-    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    --font-fa: 'Vazirmatn', system-ui, sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
+    /* Fonts with zero-latency local fallbacks */
+    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+    --font-fa: 'Vazirmatn', -apple-system, Tahoma, "Segoe UI", system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
     /* Theme: Obsidian Dark (Default) */
     --bg-base: #090a0f;

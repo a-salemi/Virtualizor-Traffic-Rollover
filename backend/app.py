@@ -43,7 +43,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 def get_password_hash(password: str) -> str:
-    salt = bcrypt.gensalt()
+    salt = bcrypt.gensalt(rounds=10)
     return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -80,9 +80,10 @@ def run_scheduled_sync():
 def on_startup():
     init_db()
     
-    # Initialize default admin if not exists
+    # Initialize default admin if not exists & load dynamic settings
     db = SessionLocal()
     try:
+        virtualizor_client.load_from_db(db)
         admin = db.query(User).filter(User.username == ADMIN_USERNAME).first()
         if not admin:
             hashed = get_password_hash(ADMIN_PASSWORD)
@@ -209,6 +210,41 @@ def system_status(user: User = Depends(get_current_user), db: Session = Depends(
         "poll_interval_minutes": POLL_INTERVAL_MINUTES,
         "port": PORT
     }
+
+# --- Virtualizor Node Management Endpoints ---
+class NodeSettingsRequest(BaseModel):
+    ip: str
+    port: int = 4085
+    api_key: str
+    api_pass: str
+
+@app.get("/api/settings/node")
+def get_node_settings(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from backend.database import get_setting
+    ip = get_setting(db, "virtualizor_ip", virtualizor_client.ip)
+    port = int(get_setting(db, "virtualizor_port", str(virtualizor_client.port)))
+    api_key = get_setting(db, "virtualizor_api_key", virtualizor_client.api_key)
+    return {
+        "ip": ip,
+        "port": port,
+        "api_key": api_key,
+        "is_configured": virtualizor_client.is_configured()
+    }
+
+@app.post("/api/settings/node")
+def save_node_settings(payload: NodeSettingsRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from backend.database import set_setting
+    set_setting(db, "virtualizor_ip", payload.ip.strip())
+    set_setting(db, "virtualizor_port", str(payload.port))
+    set_setting(db, "virtualizor_api_key", payload.api_key.strip())
+    set_setting(db, "virtualizor_api_pass", payload.api_pass.strip())
+    
+    virtualizor_client.update_credentials(payload.ip, payload.port, payload.api_key, payload.api_pass)
+    return {"success": True, "message": "Virtualizor credentials saved successfully!"}
+
+@app.post("/api/settings/test-connection")
+def test_node_connection(payload: NodeSettingsRequest, user: User = Depends(get_current_user)):
+    return virtualizor_client.test_connection_params(payload.ip, payload.port, payload.api_key, payload.api_pass)
 
 # --- Serve Static Frontend ---
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"

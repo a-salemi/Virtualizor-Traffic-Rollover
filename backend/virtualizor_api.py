@@ -9,26 +9,43 @@ from backend.config import (
     VIRTUALIZOR_API_PASS
 )
 
-# Suppress self-signed certificate warnings for local Virtualizor node
+# Suppress self-signed certificate warnings for Virtualizor nodes
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger("virturoll.api")
 
 class VirtualizorClient:
     def __init__(self):
-        self.base_url = f"https://{VIRTUALIZOR_IP}:{VIRTUALIZOR_PORT}/index.php"
+        self.ip = VIRTUALIZOR_IP
+        self.port = VIRTUALIZOR_PORT
         self.api_key = VIRTUALIZOR_API_KEY
         self.api_pass = VIRTUALIZOR_API_PASS
+        self.base_url = f"https://{self.ip}:{self.port}/index.php"
+
+    def update_credentials(self, ip: str, port: int, api_key: str, api_pass: str):
+        self.ip = ip.strip()
+        self.port = int(port)
+        self.api_key = api_key.strip()
+        self.api_pass = api_pass.strip()
+        self.base_url = f"https://{self.ip}:{self.port}/index.php"
+        logger.info(f"Virtualizor credentials updated: target={self.base_url}")
+
+    def load_from_db(self, db):
+        from backend.database import get_setting
+        ip = get_setting(db, "virtualizor_ip", VIRTUALIZOR_IP)
+        port = int(get_setting(db, "virtualizor_port", str(VIRTUALIZOR_PORT)))
+        api_key = get_setting(db, "virtualizor_api_key", VIRTUALIZOR_API_KEY)
+        api_pass = get_setting(db, "virtualizor_api_pass", VIRTUALIZOR_API_PASS)
+        self.update_credentials(ip, port, api_key, api_pass)
 
     def is_configured(self) -> bool:
-        return bool(self.api_key and self.api_pass)
+        return bool(self.api_key and self.api_pass and self.ip)
 
-    def _request(self, params: Dict[str, Any], data: Optional[Dict[str, Any]] = None, method: str = "POST") -> Optional[Dict[str, Any]]:
+    def _request(self, params: Dict[str, Any], data: Optional[Dict[str, Any]] = None, method: str = "POST", timeout: int = 15) -> Optional[Dict[str, Any]]:
         if not self.is_configured():
             logger.warning("Virtualizor API is not configured yet with API_KEY and API_PASS.")
             return None
 
-        # Build standard Virtualizor API authentication parameters
         req_params = {
             "api": "json",
             "adminindex": 1,
@@ -44,24 +61,56 @@ class VirtualizorClient:
                     params=req_params,
                     data=data or {},
                     verify=False,
-                    timeout=25
+                    timeout=timeout
                 )
             else:
                 res = requests.get(
                     self.base_url,
                     params=req_params,
                     verify=False,
-                    timeout=25
+                    timeout=timeout
                 )
 
             res.raise_for_status()
             return res.json()
         except requests.exceptions.RequestException as e:
-            logger.error(f"Virtualizor API connection error: {e}")
+            logger.error(f"Virtualizor API connection error to {self.base_url}: {e}")
             return None
         except Exception as e:
             logger.error(f"Unexpected error while parsing Virtualizor API response: {e}")
             return None
+
+    def test_connection_params(self, ip: str, port: int, api_key: str, api_pass: str) -> dict:
+        """Test explicit credentials without altering current client state"""
+        test_url = f"https://{ip.strip()}:{int(port)}/index.php"
+        req_params = {
+            "act": "vs",
+            "api": "json",
+            "adminindex": 1,
+            "apikey": api_key.strip(),
+            "apipass": api_pass.strip(),
+        }
+        try:
+            res = requests.get(test_url, params=req_params, verify=False, timeout=10)
+            res.raise_for_status()
+            data = res.json()
+            if isinstance(data, dict):
+                if "error" in data and data["error"]:
+                    return {"success": False, "error": str(data["error"])}
+                vps_count = len(data.get("vs", {}))
+                return {
+                    "success": True,
+                    "vps_count": vps_count,
+                    "version": data.get("version", "Connected"),
+                    "message": f"Successfully connected to node! Found {vps_count} virtual machines."
+                }
+            return {"success": False, "error": "Invalid response format from server."}
+        except requests.exceptions.ConnectTimeout:
+            return {"success": False, "error": "Connection timed out. Check firewall and ensure port 4085 is reachable."}
+        except requests.exceptions.ConnectionError as e:
+            return {"success": False, "error": f"Connection refused or unreachable: {e}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
     def get_all_vps(self) -> Dict[str, Any]:
         """Fetch all virtual machines from Virtualizor node"""
@@ -92,13 +141,11 @@ class VirtualizorClient:
         return False
 
     def suspend_vps(self, vpsid: str) -> bool:
-        """Suspend VPS when traffic is exhausted"""
         payload = {"act": "suspend", "vpsid": str(vpsid)}
         res = self._request(payload, method="POST")
         return bool(res and not res.get("error"))
 
     def unsuspend_vps(self, vpsid: str) -> bool:
-        """Unsuspend VPS after traffic top-up"""
         payload = {"act": "unsuspend", "vpsid": str(vpsid)}
         res = self._request(payload, method="POST")
         return bool(res and not res.get("error"))
