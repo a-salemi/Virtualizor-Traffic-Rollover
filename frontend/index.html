@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VirtuRoll - Persistent Bandwidth Guardian</title>
+    <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+
+    <!-- Dynamic Island Notification Hub -->
+    <div class="dynamic-island-container" id="dynamicIsland"></div>
+
+    <!-- Login Screen -->
+    <div class="auth-overlay" id="authView">
+        <div class="modal-card">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                <div class="brand-logo">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="brand-title" data-i18n="login_title">VirtuRoll Portal</h2>
+                    <p class="brand-sub" data-i18n="login_subtitle">Secure Access to Traffic Management</p>
+                </div>
+            </div>
+
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 0.82rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="login_user_label">Username</label>
+                    <input type="text" id="loginUsername" class="glass-input" style="width: 100%;" required autocomplete="username">
+                </div>
+                <div style="margin-bottom: 22px;">
+                    <label style="display: block; font-size: 0.82rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="login_pass_label">Password</label>
+                    <input type="password" id="loginPassword" class="glass-input" style="width: 100%;" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="glass-btn glass-btn-primary" style="width: 100%; padding: 12px;" data-i18n="login_btn">
+                    Authorize Session
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div>
+            <div class="brand">
+                <div class="brand-logo">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="brand-title">VirtuRoll</h1>
+                    <p class="brand-sub" data-i18n="app_subtitle">Bandwidth Guardian</p>
+                </div>
+            </div>
+
+            <ul class="nav-links">
+                <li>
+                    <a href="#dashboard" class="nav-link active" onclick="switchTab('dashboard')">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                        <span data-i18n="nav_dashboard">Dashboard</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#vps" class="nav-link" onclick="switchTab('dashboard')">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                        <span data-i18n="nav_vps_list">VPS Instances</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#logs" class="nav-link" onclick="switchTab('logs')">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        <span data-i18n="nav_logs">Audit Logs</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <div class="sidebar-controls">
+            <!-- Language Dropdown -->
+            <select id="langSelector" class="glass-select" onchange="setLanguage(this.value)">
+                <option value="en">English (LTR)</option>
+                <option value="fa">فارسی (RTL)</option>
+            </select>
+
+            <!-- Theme Switcher -->
+            <button class="glass-btn" onclick="toggleTheme()" id="themeBtn" style="width: 100%;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIcon">
+                    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+                <span id="themeLabel">Toggle Theme</span>
+            </button>
+
+            <!-- Sign Out -->
+            <button class="glass-btn" onclick="handleLogout()" style="width: 100%; color: var(--accent-rose);">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                <span data-i18n="nav_logout">Sign Out</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="main-content">
+        <header class="top-bar">
+            <div>
+                <h2 style="font-size: 1.5rem; font-weight: 700;" id="pageHeading" data-i18n="nav_dashboard">Dashboard</h2>
+            </div>
+            <button class="glass-btn glass-btn-primary" onclick="syncNode()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                <span data-i18n="btn_sync_now">Sync Virtualizor</span>
+            </button>
+        </header>
+
+        <!-- DASHBOARD TAB -->
+        <section id="tabDashboard">
+            <!-- Metrics -->
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-card-header">
+                        <span class="metric-title" data-i18n="stat_total_vps">Total VPS Nodes</span>
+                        <div class="metric-icon-box" style="color: var(--accent-indigo);">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg>
+                        </div>
+                    </div>
+                    <div class="metric-val num-mono" id="statTotalVps">0</div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-card-header">
+                        <span class="metric-title" data-i18n="stat_managed_bw">Managed Bandwidth</span>
+                        <div class="metric-icon-box" style="color: var(--accent-violet);">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="metric-val num-mono" id="statManagedBw">0</span>
+                        <span class="metric-unit">GB</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-card-header">
+                        <span class="metric-title" data-i18n="stat_consumed_bw">Used This Cycle</span>
+                        <div class="metric-icon-box" style="color: var(--accent-rose);">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="metric-val num-mono" id="statUsedBw">0</span>
+                        <span class="metric-unit">GB</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-card-header">
+                        <span class="metric-title" data-i18n="stat_remaining_bw">Persistent Remaining</span>
+                        <div class="metric-icon-box" style="color: var(--accent-cyan);">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="metric-val num-mono" id="statRemainingBw">0</span>
+                        <span class="metric-unit">GB</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Table & Card Container -->
+            <div class="table-container">
+                <div class="table-header-bar">
+                    <h3 style="font-size: 1.15rem; font-weight: 700;" data-i18n="vps_title">Active Virtual Machines</h3>
+                    <div class="search-box">
+                        <svg class="search-box-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <input type="text" class="glass-input" id="vpsSearch" oninput="filterVPS()" data-i18n-placeholder="vps_search_placeholder" placeholder="Filter by Hostname, IP, or ID...">
+                    </div>
+                </div>
+
+                <table class="vps-table" id="vpsTable">
+                    <thead>
+                        <tr>
+                            <th data-i18n="th_vpsid">ID</th>
+                            <th data-i18n="th_hostname">Hostname & IP</th>
+                            <th data-i18n="th_purchased">Purchased Plan</th>
+                            <th data-i18n="th_current_limit">Current Virtualizor Limit</th>
+                            <th data-i18n="th_used">Used Cycle</th>
+                            <th data-i18n="th_remaining">Actual Remaining</th>
+                            <th data-i18n="th_progress">Usage</th>
+                            <th data-i18n="th_last_rollover">Last Rollover</th>
+                            <th data-i18n="th_actions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="vpsTableBody">
+                        <!-- Populated dynamically via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- AUDIT LOGS TAB -->
+        <section id="tabLogs" style="display: none;">
+            <div class="table-container">
+                <div class="table-header-bar">
+                    <h3 style="font-size: 1.15rem; font-weight: 700;" data-i18n="logs_title">System Audit & Rollover History</h3>
+                </div>
+                <table class="vps-table">
+                    <thead>
+                        <tr>
+                            <th data-i18n="th_log_time">Timestamp</th>
+                            <th data-i18n="th_log_event">Event</th>
+                            <th data-i18n="th_log_vps">Target VPS</th>
+                            <th data-i18n="th_log_message">Message Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsTableBody">
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- Top-Up Bandwidth Modal -->
+    <div class="modal-overlay" id="topupModal">
+        <div class="modal-card">
+            <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 8px;" data-i18n="modal_add_title">Top-Up VPS Traffic</h3>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 20px;">
+                <span data-i18n="modal_add_desc">Add persistent traffic bucket to VPS</span>: <strong id="modalTargetHostname" class="num-mono">-</strong>
+            </p>
+
+            <form onsubmit="submitTopup(event)">
+                <input type="hidden" id="modalVpsId">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.82rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="modal_label_gb">Bandwidth to Add (GB)</label>
+                    <input type="number" step="1" min="1" id="modalAddAmount" class="glass-input num-mono" style="width: 100%; font-size: 1.1rem;" placeholder="e.g. 500" required>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" class="glass-btn" onclick="closeTopupModal()" data-i18n="modal_btn_cancel">Cancel</button>
+                    <button type="submit" class="glass-btn glass-btn-primary" data-i18n="modal_btn_confirm">Confirm Top-Up</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/assets/js/i18n.js"></script>
+    <script src="/assets/js/app.js"></script>
+</body>
+</html>
