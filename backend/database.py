@@ -1,3 +1,4 @@
+from __future__ import annotations
 from datetime import datetime
 import json
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime, Text

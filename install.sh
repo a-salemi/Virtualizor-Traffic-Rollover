@@ -41,15 +41,15 @@ INSTALL_DIR="/opt/virturoll"
 
 echo -e "${YELLOW}[1/5] Checking and installing system dependencies...${NC}"
 apt-get update -y
-apt-get install -y python3 python3-pip python3-venv git curl
+apt-get install -y python3 python3-pip python3-venv git curl build-essential python3-dev
 
 # Handle one-liner cloning or local execution
 if [ ! -f "backend/app.py" ]; then
     echo -e "${YELLOW}Cloning VirtuRoll into ${INSTALL_DIR}...${NC}"
     if [ -d "$INSTALL_DIR/.git" ]; then
         cd "$INSTALL_DIR"
-        git reset --hard HEAD
-        git pull origin main
+        git fetch origin
+        git reset --hard origin/main
     else
         mkdir -p "$INSTALL_DIR"
         git clone https://github.com/a-salemi/Virtualizor-Traffic-Rollover.git "$INSTALL_DIR"
@@ -58,6 +58,11 @@ if [ ! -f "backend/app.py" ]; then
 else
     INSTALL_DIR="$(pwd)"
     cd "$INSTALL_DIR"
+    if [ -d ".git" ]; then
+        echo -e "${YELLOW}Updating repository to latest version...${NC}"
+        git fetch origin
+        git reset --hard origin/main
+    fi
 fi
 
 SKIP_CREDENTIAL_PROMPT=false

@@ -1,8 +1,9 @@
+from __future__ import annotations
 import logging
 import json
 import requests
 import urllib3
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from backend.config import (
     VIRTUALIZOR_IP,
     VIRTUALIZOR_PORT,
