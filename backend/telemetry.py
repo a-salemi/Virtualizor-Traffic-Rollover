@@ -14,6 +14,9 @@ try:
 except Exception:
     psutil = None
 
+_last_cpu_stats = None
+_smooth_cpu_pct = None
+
 def get_uptime_str(seconds: float) -> str:
     if seconds <= 0:
         return "0d 0h 0m"
@@ -22,9 +25,65 @@ def get_uptime_str(seconds: float) -> str:
     minutes = int((seconds % 3600) // 60)
     return f"{days}d {hours}h {minutes}m"
 
+def calculate_smooth_cpu() -> float:
+    global _last_cpu_stats, _smooth_cpu_pct
+    measured = None
+
+    # Method 1: Linux /proc/stat differential calculation (Zero blocking, high accuracy)
+    if os.path.exists("/proc/stat"):
+        try:
+            with open("/proc/stat", "r") as f:
+                first_line = f.readline()
+            if first_line.startswith("cpu "):
+                fields = [float(x) for x in first_line.split()[1:8]]
+                user, nice, system, idle, iowait, irq, softirq = fields[:7]
+                idle_ticks = idle + iowait
+                total_ticks = sum(fields)
+
+                if _last_cpu_stats is not None:
+                    prev_total, prev_idle = _last_cpu_stats
+                    diff_total = total_ticks - prev_total
+                    diff_idle = idle_ticks - prev_idle
+                    if diff_total > 0:
+                        raw_pct = (1.0 - (diff_idle / diff_total)) * 100.0
+                        measured = max(0.0, min(100.0, raw_pct))
+                _last_cpu_stats = (total_ticks, idle_ticks)
+        except Exception:
+            pass
+
+    # Method 2: psutil cpu_times delta fallback
+    if measured is None and psutil:
+        try:
+            times = psutil.cpu_times()
+            total = sum(times)
+            idle = getattr(times, "idle", 0.0)
+            if _last_cpu_stats is not None:
+                prev_total, prev_idle = _last_cpu_stats
+                diff_total = total - prev_total
+                diff_idle = idle - prev_idle
+                if diff_total > 0:
+                    raw_pct = (1.0 - (diff_idle / diff_total)) * 100.0
+                    measured = max(0.0, min(100.0, raw_pct))
+            _last_cpu_stats = (total, idle)
+        except Exception:
+            try:
+                measured = psutil.cpu_percent(interval=None)
+            except Exception:
+                pass
+
+    if measured is None:
+        measured = 0.0
+
+    # Smooth values using Exponential Moving Average to prevent wild visual jumping
+    if _smooth_cpu_pct is None:
+        _smooth_cpu_pct = measured
+    else:
+        _smooth_cpu_pct = (0.65 * measured) + (0.35 * _smooth_cpu_pct)
+
+    return round(_smooth_cpu_pct, 1)
+
 def get_system_telemetry() -> dict:
     cores = os.cpu_count() or 1
-    cpu_percent = 0.0
     load_avg = [0.0, 0.0, 0.0]
 
     mem_total_gb = 1.0
@@ -51,15 +110,12 @@ def get_system_telemetry() -> dict:
         except Exception:
             pass
 
-    # 2. psutil dynamic telemetry
+    # 2. CPU Usage %: Smooth and accurate without micro-sampling jitters
+    cpu_percent = calculate_smooth_cpu()
+
+    # 3. RAM, Swap & Uptime
     if psutil:
         try:
-            # CPU (100ms sample for real active measurement)
-            try:
-                cpu_percent = round(psutil.cpu_percent(interval=0.1), 1)
-            except Exception:
-                cpu_percent = round(psutil.cpu_percent(interval=None), 1)
-
             # RAM
             vm = psutil.virtual_memory()
             mem_total_gb = round(vm.total / (1024**3), 2)
@@ -113,10 +169,6 @@ def get_system_telemetry() -> dict:
                 uptime_seconds = float(f.readline().split()[0])
         except Exception:
             pass
-
-    # Fallback for CPU if psutil not present
-    if not psutil and cores > 0 and load_avg[0] > 0:
-        cpu_percent = min(100.0, round((load_avg[0] / cores) * 100, 1))
 
     # Disk Usage
     disk_total_gb = 10.0

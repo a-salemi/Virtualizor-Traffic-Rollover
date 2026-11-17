@@ -272,6 +272,11 @@ function openTopupModal(vpsid, hostname) {
     document.getElementById("modalVpsId").value = vpsid;
     document.getElementById("modalTargetHostname").textContent = `${hostname} (#${vpsid})`;
     document.getElementById("modalAddAmount").value = "";
+    const msg = document.getElementById("topupModalMsg");
+    if (msg) {
+        msg.style.display = "none";
+        msg.textContent = "";
+    }
     document.getElementById("topupModal").classList.add("active");
 }
 
@@ -288,28 +293,64 @@ async function submitTopup(e) {
     const form = e.target;
     const submitBtn = form.querySelector("button[type='submit']");
     const origHtml = submitBtn ? submitBtn.innerHTML : "Save";
+    const statusMsg = document.getElementById("topupModalMsg");
+
+    if (statusMsg) {
+        statusMsg.style.display = "block";
+        statusMsg.style.color = "var(--text-secondary)";
+        statusMsg.style.border = "1px solid var(--border-glass)";
+        statusMsg.textContent = "⏳ " + (t("applying_changes") || "Applying changes to Virtualizor node...");
+    }
+
     if (submitBtn) {
         submitBtn.disabled = true;
         submitBtn.innerHTML = `<span>⏳ ${t('applying_changes') || 'Applying...'}</span>`;
     }
 
+    const controller = new AbortController();
+    const timeoutTimer = setTimeout(() => controller.abort(), 12000);
+
     try {
         const res = await fetch(`/api/vps/${vpsid}/add-traffic`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ extra_gb: gb })
+            body: JSON.stringify({ extra_gb: gb }),
+            signal: controller.signal
         });
+        clearTimeout(timeoutTimer);
         const data = await res.json();
         if (res.ok && data.success) {
-            closeTopupModal();
+            if (statusMsg) {
+                statusMsg.style.color = "var(--accent-emerald)";
+                statusMsg.style.borderColor = "var(--accent-emerald)";
+                statusMsg.textContent = "✓ " + (data.message || t("toast_add_success"));
+            }
             showToast(data.message || `${t("toast_add_success")} (+${gb} GB)`, "success");
-            loadVPSList();
-            loadDashboard();
+            setTimeout(() => {
+                closeTopupModal();
+                loadVPSList();
+                loadDashboard();
+            }, 600);
         } else {
-            showToast(data.message || data.detail || t("toast_add_failed"), "error");
+            const errMsg = data.message || data.detail || t("toast_add_failed");
+            if (statusMsg) {
+                statusMsg.style.color = "var(--accent-rose)";
+                statusMsg.style.borderColor = "var(--accent-rose)";
+                statusMsg.textContent = "✕ " + errMsg;
+            }
+            showToast(errMsg, "error", 6000);
         }
     } catch (err) {
-        showToast(t("toast_add_failed"), "error");
+        clearTimeout(timeoutTimer);
+        const errMsg = err.name === "AbortError" 
+            ? "Request timed out. Virtualizor node took too long to respond." 
+            : (err.message || t("toast_add_failed"));
+        if (statusMsg) {
+            statusMsg.style.color = "var(--accent-rose)";
+            statusMsg.style.borderColor = "var(--accent-rose)";
+            statusMsg.textContent = "✕ " + errMsg;
+        }
+        showToast(errMsg, "error", 6000);
     } finally {
         if (submitBtn) {
             submitBtn.disabled = false;

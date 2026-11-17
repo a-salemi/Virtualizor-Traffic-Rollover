@@ -119,7 +119,7 @@ class TrafficGuardian:
                     )
 
                     # Push updated limit to Virtualizor node
-                    success, api_msg = virtualizor_client.update_vps_bandwidth(vpsid, new_limit)
+                    success, api_msg = virtualizor_client.update_vps_bandwidth(vpsid, new_limit, hostname=hostname)
 
                     audit = AuditLog(
                         event_type="ROLLOVER",
@@ -183,12 +183,12 @@ class TrafficGuardian:
         new_limit = round(rec.current_virtualizor_limit_gb + extra_gb, 2)
 
         # Update Virtualizor node
-        success, api_msg = virtualizor_client.update_vps_bandwidth(vpsid, new_limit)
+        success, api_msg = virtualizor_client.update_vps_bandwidth(vpsid, new_limit, hostname=rec.hostname)
         if not success:
             logger.error(f"Failed to update bandwidth on Virtualizor node for VPS {vpsid}: {api_msg}")
             return {
                 "success": False,
-                "message": f"Virtualizor node failed to apply traffic: {api_msg}"
+                "message": f"Virtualizor node: {api_msg}"
             }
 
         rec.total_purchased_gb = new_total_purchased
@@ -209,11 +209,16 @@ class TrafficGuardian:
         db.add(audit)
         db.commit()
 
-        # Trigger real-time Telegram top-up alert
+        # Trigger real-time Telegram top-up alert in background daemon thread (never delays response)
+        import threading
         try:
-            telegram_notifier.notify_topup(vpsid, rec.hostname, extra_gb, new_limit)
+            threading.Thread(
+                target=telegram_notifier.notify_topup,
+                args=(vpsid, rec.hostname, extra_gb, new_limit),
+                daemon=True
+            ).start()
         except Exception as te:
-            logger.error(f"Failed to send topup telegram alert: {te}")
+            logger.error(f"Failed to launch topup telegram alert thread: {te}")
 
         return {
             "success": True,

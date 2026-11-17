@@ -87,10 +87,10 @@ class VirtualizorClient:
         params.update(base_params)
         return params
 
-    def _request(self, params: Dict[str, Any], data: Optional[Dict[str, Any]] = None, method: str = "POST", timeout: int = 15) -> Optional[Dict[str, Any]]:
+    def _request(self, params: Dict[str, Any], data: Optional[Dict[str, Any]] = None, method: str = "POST", timeout = (3.0, 7.0)) -> Optional[Dict[str, Any]]:
         if not self.is_configured():
             logger.warning("Virtualizor API is not configured yet with API_KEY and API_PASS.")
-            return None
+            return {"error": "Virtualizor API is not configured yet."}
 
         req_params = self._build_auth_params(params, self.api_key, self.api_pass)
 
@@ -123,20 +123,37 @@ class VirtualizorClient:
 
             res.raise_for_status()
             text = res.text.strip()
+
+            # Robust JSON extraction even if PHP output contains warnings or notices
+            if "{" in text and "}" in text:
+                json_start = text.find("{")
+                json_end = text.rfind("}") + 1
+                try:
+                    data_parsed = json.loads(text[json_start:json_end])
+                    if isinstance(data_parsed, dict):
+                        if "error" in data_parsed and data_parsed["error"]:
+                            logger.error(f"Virtualizor API error returned: {data_parsed['error']}")
+                        return data_parsed
+                except Exception:
+                    pass
+
             if text.startswith("<") or "<html" in text.lower():
                 logger.error(f"Virtualizor returned HTML Login page for {self.base_url}. Authentication rejected by node.")
                 return {"error": "Virtualizor rejected API credentials and redirected to HTML login. Check Allowed IP on your Virtualizor node."}
 
-            data = res.json()
-            if isinstance(data, dict) and "error" in data and data["error"]:
-                logger.error(f"Virtualizor API error returned: {data['error']}")
-            return data
+            try:
+                return res.json()
+            except Exception:
+                return {"error": "Invalid response format received from Virtualizor node."}
+        except requests.exceptions.Timeout:
+            logger.error(f"Virtualizor API timeout for {self.base_url}")
+            return {"error": "Virtualizor node connection timed out (server took too long to respond)."}
         except requests.exceptions.RequestException as e:
             logger.error(f"Virtualizor API connection error to {self.base_url}: {e}")
-            return None
+            return {"error": f"Cannot connect to Virtualizor node ({e})"}
         except Exception as e:
             logger.error(f"Unexpected error while parsing Virtualizor API response: {e}")
-            return None
+            return {"error": str(e)}
 
     def test_connection_params(self, ip: str, port: int, api_key: str, api_pass: str) -> dict:
         """Test explicit credentials without altering current client state"""
@@ -196,22 +213,31 @@ class VirtualizorClient:
         all_vps = self.get_all_vps()
         return all_vps.get(str(vpsid))
 
-    def update_vps_bandwidth(self, vpsid: str, new_bandwidth_gb: float) -> Tuple[bool, str]:
+    def update_vps_bandwidth(self, vpsid: str, new_bandwidth_gb: float, hostname: str = "") -> Tuple[bool, str]:
         """Update VPS total bandwidth limit via Virtualizor API. Returns (success, message)."""
         clean_limit = round(float(new_bandwidth_gb), 2)
         params = {
             "act": "editvs",
             "vpsid": str(vpsid),
+            "vid": str(vpsid),
             "editvs": 1,
+            "editvm": 1,
             "bandwidth": clean_limit
         }
         post_data = {
+            "act": "editvs",
             "editvs": 1,
+            "editvm": 1,
             "vpsid": str(vpsid),
+            "vid": str(vpsid),
             "bandwidth": clean_limit,
             "submit": 1,
             "do": 1
         }
+        if hostname:
+            params["hostname"] = hostname
+            post_data["hostname"] = hostname
+
         res = self._request(params, data=post_data, method="POST")
         if not res or not isinstance(res, dict):
             return False, "No valid response from Virtualizor node."
@@ -227,6 +253,10 @@ class VirtualizorClient:
             err_msg = ", ".join(err) if isinstance(err, list) else str(err)
             logger.error(f"Virtualizor API returned error for editvs {vpsid}: {err_msg}")
             return False, err_msg
+
+        if res.get("vs_info") or (res.get("title") and not res.get("error")):
+            logger.info(f"Virtualizor node confirmed VPS {vpsid} bandwidth update to {clean_limit} GB.")
+            return True, "Bandwidth updated successfully on node."
 
         logger.warning(f"Virtualizor did not return confirmation for editvs {vpsid}: {res}")
         return False, "Virtualizor node did not confirm bandwidth modification."

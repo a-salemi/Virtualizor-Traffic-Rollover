@@ -180,7 +180,7 @@ def add_traffic(vpsid: str, payload: AddTrafficRequest, user: User = Depends(get
         raise HTTPException(status_code=400, detail="Bandwidth to add must be greater than 0.")
     res = guardian.add_bandwidth(db, vpsid, payload.extra_gb)
     if not res.get("success"):
-        raise HTTPException(status_code=404, detail=res.get("message", "Error adding traffic."))
+        return JSONResponse(status_code=400, content=res)
     return res
 
 @app.post("/api/system/sync")
