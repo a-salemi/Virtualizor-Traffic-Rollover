@@ -84,7 +84,8 @@ async function checkAuth() {
         const res = await fetch("/api/auth/me");
         if (res.ok) {
             document.getElementById("authView").style.display = "none";
-            loadDashboard();
+            const hash = window.location.hash.replace("#", "") || "dashboard";
+            switchTab(hash);
         } else {
             document.getElementById("authView").style.display = "flex";
         }
@@ -114,8 +115,8 @@ async function handleLogin(e) {
         if (res.ok && data.success) {
             document.getElementById("authView").style.display = "none";
             showToast(t("toast_login_success"), "success");
-            loadDashboard();
-            fetchTelemetry();
+            const hash = window.location.hash.replace("#", "") || "dashboard";
+            switchTab(hash);
         } else {
             showToast(data.detail || t("login_err"), "error");
         }
@@ -284,6 +285,14 @@ async function submitTopup(e) {
     const gb = parseFloat(document.getElementById("modalAddAmount").value);
     if (!gb || gb <= 0) return;
 
+    const form = e.target;
+    const submitBtn = form.querySelector("button[type='submit']");
+    const origHtml = submitBtn ? submitBtn.innerHTML : "Save";
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<span>⏳ ${t('applying_changes') || 'Applying...'}</span>`;
+    }
+
     try {
         const res = await fetch(`/api/vps/${vpsid}/add-traffic`, {
             method: "POST",
@@ -293,14 +302,19 @@ async function submitTopup(e) {
         const data = await res.json();
         if (res.ok && data.success) {
             closeTopupModal();
-            showToast(`${t("toast_add_success")} (+${gb} GB)`, "success");
+            showToast(data.message || `${t("toast_add_success")} (+${gb} GB)`, "success");
             loadVPSList();
             loadDashboard();
         } else {
-            showToast(data.detail || t("toast_add_failed"), "error");
+            showToast(data.message || data.detail || t("toast_add_failed"), "error");
         }
     } catch (err) {
         showToast(t("toast_add_failed"), "error");
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = origHtml;
+        }
     }
 }
 
@@ -507,6 +521,13 @@ document.addEventListener("DOMContentLoaded", () => {
     checkAuth();
 });
 
+window.addEventListener("hashchange", () => {
+    const hash = window.location.hash.replace("#", "");
+    if (hash && ["dashboard", "vps", "panels", "logs", "settings"].includes(hash)) {
+        switchTab(hash);
+    }
+});
+
 
 // --- Real-time Clock ---
 function initClock() {
@@ -573,7 +594,8 @@ async function fetchTelemetry() {
         document.getElementById("telemCpuCores").textContent = `${cores} ${t('telemetry_cores')}`;
         const loadArr = (data.cpu && data.cpu.load_avg) || data.load_average;
         if (loadArr && loadArr.length >= 3) {
-            document.getElementById("telemCpuLoad").textContent = `${t('telemetry_load')}: ${loadArr.join(" / ")}`;
+            const formattedLoad = loadArr.map(n => Number(n).toFixed(2)).join(" / ");
+            document.getElementById("telemCpuLoad").textContent = `${t('telemetry_load')}: ${formattedLoad}`;
         }
 
         // RAM
@@ -602,8 +624,8 @@ async function fetchTelemetry() {
 
         // Uptime & Counts
         document.getElementById("telemUptime").textContent = data.uptime || data.uptime_formatted || "0d 0h 0m";
-        if (document.getElementById("sumActiveVps")) {
-            document.getElementById("sumActiveVps").textContent = allVpsData.length || 0;
+        if (document.getElementById("sumActiveVps") && allVpsData && allVpsData.length > 0) {
+            document.getElementById("sumActiveVps").textContent = allVpsData.length;
         }
     } catch (e) {
         console.error("Telemetry poll error", e);

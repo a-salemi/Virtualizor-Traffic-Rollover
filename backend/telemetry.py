@@ -15,30 +15,16 @@ except Exception:
 
 def get_uptime_str(seconds: float) -> str:
     if seconds <= 0:
-        return "0m"
+        return "0d 0h 0m"
     days = int(seconds // (24 * 3600))
     hours = int((seconds % (24 * 3600)) // 3600)
     minutes = int((seconds % 3600) // 60)
-    if days > 0:
-        return f"{days}d {hours}h {minutes}m"
-    elif hours > 0:
-        return f"{hours}h {minutes}m"
-    else:
-        return f"{minutes}m"
+    return f"{days}d {hours}h {minutes}m"
 
 def get_system_telemetry() -> dict:
     cores = os.cpu_count() or 1
     cpu_percent = 0.0
     load_avg = [0.0, 0.0, 0.0]
-
-    # Load average
-    try:
-        if hasattr(os, "getloadavg"):
-            l1, l5, l15 = os.getloadavg()
-            load_avg = [round(l1, 2), round(l5, 2), round(l15, 2)]
-            cpu_percent = min(100.0, round((l1 / cores) * 100, 1))
-    except Exception:
-        pass
 
     mem_total_gb = 1.0
     mem_used_gb = 0.0
@@ -48,13 +34,30 @@ def get_system_telemetry() -> dict:
     swap_percent = 0.0
     uptime_seconds = 0.0
 
-    # Try psutil first
+    # 1. Load Average: Read from /proc/loadavg on Linux or os.getloadavg()
+    if os.path.exists("/proc/loadavg"):
+        try:
+            with open("/proc/loadavg", "r") as f:
+                parts = f.read().strip().split()
+                if len(parts) >= 3:
+                    load_avg = [round(float(parts[0]), 2), round(float(parts[1]), 2), round(float(parts[2]), 2)]
+        except Exception:
+            pass
+    elif hasattr(os, "getloadavg"):
+        try:
+            l1, l5, l15 = os.getloadavg()
+            load_avg = [round(l1, 2), round(l5, 2), round(l15, 2)]
+        except Exception:
+            pass
+
+    # 2. psutil dynamic telemetry
     if psutil:
         try:
-            # CPU
-            instant_cpu = psutil.cpu_percent(interval=None)
-            if instant_cpu > 0:
-                cpu_percent = round(instant_cpu, 1)
+            # CPU (100ms sample for real active measurement)
+            try:
+                cpu_percent = round(psutil.cpu_percent(interval=0.1), 1)
+            except Exception:
+                cpu_percent = round(psutil.cpu_percent(interval=None), 1)
 
             # RAM
             vm = psutil.virtual_memory()
@@ -73,7 +76,7 @@ def get_system_telemetry() -> dict:
         except Exception as e:
             logger.debug(f"psutil telemetry error: {e}")
 
-    # Fallback /proc for Linux
+    # Fallback /proc for Linux if psutil is unavailable or missing data
     if mem_used_gb == 0.0 and os.path.exists("/proc/meminfo"):
         try:
             mem_data = {}
@@ -109,6 +112,10 @@ def get_system_telemetry() -> dict:
                 uptime_seconds = float(f.readline().split()[0])
         except Exception:
             pass
+
+    # Fallback for CPU if psutil not present
+    if not psutil and cores > 0 and load_avg[0] > 0:
+        cpu_percent = min(100.0, round((load_avg[0] / cores) * 100, 1))
 
     # Disk Usage
     disk_total_gb = 10.0

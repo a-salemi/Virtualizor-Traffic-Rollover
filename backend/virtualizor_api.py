@@ -93,12 +93,20 @@ class VirtualizorClient:
 
         req_params = self._build_auth_params(params, self.api_key, self.api_pass)
 
+        # Ensure authentication and critical parameters exist in both query and POST body
+        post_body = {}
+        if data:
+            post_body.update(data)
+        for k in ("apikey", "apipass", "adminapikey", "adminapipass", "api", "adminindex"):
+            if k in req_params and k not in post_body:
+                post_body[k] = req_params[k]
+
         try:
             if method.upper() == "POST":
                 res = requests.post(
                     self.base_url,
                     params=req_params,
-                    data=data or {},
+                    data=post_body,
                     headers=DEFAULT_HEADERS,
                     verify=False,
                     timeout=timeout
@@ -187,21 +195,40 @@ class VirtualizorClient:
         all_vps = self.get_all_vps()
         return all_vps.get(str(vpsid))
 
-    def update_vps_bandwidth(self, vpsid: str, new_bandwidth_gb: float) -> bool:
-        """Update VPS total bandwidth limit via Virtualizor API"""
-        payload = {
+    def update_vps_bandwidth(self, vpsid: str, new_bandwidth_gb: float) -> Tuple[bool, str]:
+        """Update VPS total bandwidth limit via Virtualizor API. Returns (success, message)."""
+        clean_limit = round(float(new_bandwidth_gb), 2)
+        params = {
             "act": "editvs",
             "vpsid": str(vpsid),
-            "bandwidth": round(float(new_bandwidth_gb), 2)
+            "editvs": 1,
+            "bandwidth": clean_limit
         }
-        res = self._request(payload, method="POST")
-        if res and isinstance(res, dict):
-            if res.get("done") or not res.get("error"):
-                logger.info(f"Successfully updated VPS {vpsid} bandwidth to {new_bandwidth_gb} GB.")
-                return True
-            else:
-                logger.error(f"Virtualizor API returned error for editvs {vpsid}: {res.get('error')}")
-        return False
+        post_data = {
+            "editvs": 1,
+            "vpsid": str(vpsid),
+            "bandwidth": clean_limit,
+            "submit": 1,
+            "do": 1
+        }
+        res = self._request(params, data=post_data, method="POST")
+        if not res or not isinstance(res, dict):
+            return False, "No valid response from Virtualizor node."
+
+        if res.get("done"):
+            done_val = res.get("done")
+            msg = done_val.get("msg") if isinstance(done_val, dict) else str(done_val)
+            logger.info(f"Successfully updated VPS {vpsid} bandwidth to {clean_limit} GB: {msg}")
+            return True, str(msg or "Bandwidth updated successfully.")
+
+        if res.get("error"):
+            err = res.get("error")
+            err_msg = ", ".join(err) if isinstance(err, list) else str(err)
+            logger.error(f"Virtualizor API returned error for editvs {vpsid}: {err_msg}")
+            return False, err_msg
+
+        logger.warning(f"Virtualizor did not return confirmation for editvs {vpsid}: {res}")
+        return False, "Virtualizor node did not confirm bandwidth modification."
 
     def suspend_vps(self, vpsid: str) -> bool:
         payload = {"act": "suspend", "vpsid": str(vpsid)}

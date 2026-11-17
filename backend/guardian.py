@@ -118,17 +118,18 @@ class TrafficGuardian:
                     )
 
                     # Push updated limit to Virtualizor node
-                    success = virtualizor_client.update_vps_bandwidth(vpsid, new_limit)
+                    success, api_msg = virtualizor_client.update_vps_bandwidth(vpsid, new_limit)
 
                     audit = AuditLog(
                         event_type="ROLLOVER",
                         vpsid=vpsid,
-                        message=f"Automatic rollover applied. Remaining bandwidth set to {new_limit} GB (Was: {prev_limit} GB, Used: {prev_used} GB).",
+                        message=f"Automatic rollover applied. Remaining bandwidth set to {new_limit} GB (Was: {prev_limit} GB, Used: {prev_used} GB). Result: {api_msg}",
                         details=json.dumps({
                             "prev_limit_gb": prev_limit,
                             "prev_used_gb": prev_used,
                             "new_limit_gb": new_limit,
-                            "api_success": success
+                            "api_success": success,
+                            "api_msg": api_msg
                         })
                     )
                     db.add(audit)
@@ -180,8 +181,14 @@ class TrafficGuardian:
         new_total_purchased = round(rec.total_purchased_gb + extra_gb, 2)
         new_limit = round(rec.current_virtualizor_limit_gb + extra_gb, 2)
 
-        # Update Virtualizor
-        api_res = virtualizor_client.update_vps_bandwidth(vpsid, new_limit)
+        # Update Virtualizor node
+        success, api_msg = virtualizor_client.update_vps_bandwidth(vpsid, new_limit)
+        if not success:
+            logger.error(f"Failed to update bandwidth on Virtualizor node for VPS {vpsid}: {api_msg}")
+            return {
+                "success": False,
+                "message": f"Virtualizor node failed to apply traffic: {api_msg}"
+            }
 
         rec.total_purchased_gb = new_total_purchased
         rec.current_virtualizor_limit_gb = new_limit
@@ -190,11 +197,12 @@ class TrafficGuardian:
         audit = AuditLog(
             event_type="ADD_TRAFFIC",
             vpsid=str(vpsid),
-            message=f"Added {extra_gb} GB traffic to VPS {vpsid} ({rec.hostname}). New limit: {new_limit} GB.",
+            message=f"Added {extra_gb} GB traffic to VPS {vpsid} ({rec.hostname}). New limit: {new_limit} GB. (Node confirmed: {api_msg})",
             details=json.dumps({
                 "added_gb": extra_gb,
                 "new_limit_gb": new_limit,
-                "total_purchased_gb": new_total_purchased
+                "total_purchased_gb": new_total_purchased,
+                "api_response": api_msg
             })
         )
         db.add(audit)
@@ -212,7 +220,8 @@ class TrafficGuardian:
             "added_gb": extra_gb,
             "new_limit_gb": new_limit,
             "remaining_gb": rec.remaining_gb,
-            "virtualizor_synced": api_res
+            "virtualizor_synced": True,
+            "message": f"Successfully added {extra_gb} GB to VPS #{vpsid}."
         }
 
 guardian = TrafficGuardian()
