@@ -200,8 +200,35 @@ systemctl restart virturoll
 echo -e "${YELLOW}[5/5] Checking service status...${NC}"
 sleep 2
 
-# Detect server public or local IP
-SERVER_IP=$(curl -s4 ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
+# Robust Server IP detection with regex validation and multiple fallbacks
+get_server_ip() {
+    local detected_ip=""
+    for service_url in "https://api.ipify.org" "https://icanhazip.com" "https://checkip.amazonaws.com" "https://ipinfo.io/ip"; do
+        detected_ip=$(curl -s4 -A "curl/7.81.0" --max-time 3 "$service_url" 2>/dev/null | tr -d '[:space:]' || true)
+        if [[ "$detected_ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+            echo "$detected_ip"
+            return 0
+        fi
+    done
+
+    # Fallback to local default network route IP
+    detected_ip=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}' | tr -d '[:space:]' || true)
+    if [[ "$detected_ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        echo "$detected_ip"
+        return 0
+    fi
+
+    # Fallback to hostname -I
+    detected_ip=$(hostname -I 2>/dev/null | awk '{print $1}' | tr -d '[:space:]' || true)
+    if [[ "$detected_ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        echo "$detected_ip"
+        return 0
+    fi
+
+    echo "YOUR_SERVER_IP"
+}
+
+SERVER_IP=$(get_server_ip)
 
 if systemctl is-active --quiet virturoll; then
     echo ""
