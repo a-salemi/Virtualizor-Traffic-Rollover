@@ -254,6 +254,139 @@ def save_node_settings(payload: NodeSettingsRequest, user: User = Depends(get_cu
 def test_node_connection(payload: NodeSettingsRequest, user: User = Depends(get_current_user)):
     return virtualizor_client.test_connection_params(payload.ip, payload.port, payload.api_key, payload.api_pass)
 
+# --- Hardware Telemetry ---
+from backend.telemetry import get_system_telemetry
+from backend.telegram_notifier import telegram_notifier
+
+@app.get("/api/system/telemetry")
+def system_telemetry(user: User = Depends(get_current_user)):
+    return get_system_telemetry()
+
+# --- Telegram Bot Alert Settings ---
+class TelegramSettingsRequest(BaseModel):
+    enabled: bool
+    token: str
+    chat_id: str
+    proxy: Optional[str] = ""
+    api_server: Optional[str] = "https://api.telegram.org"
+    lang: Optional[str] = "fa"
+
+@app.get("/api/settings/telegram")
+def get_telegram_settings(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return telegram_notifier.get_config(db)
+
+@app.post("/api/settings/telegram")
+def save_telegram_settings(payload: TelegramSettingsRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from backend.database import set_setting
+    set_setting(db, "tg_enabled", "true" if payload.enabled else "false")
+    set_setting(db, "tg_token", payload.token.strip())
+    set_setting(db, "tg_chat_id", payload.chat_id.strip())
+    set_setting(db, "tg_proxy", payload.proxy.strip() if payload.proxy else "")
+    set_setting(db, "tg_api_server", payload.api_server.strip() if payload.api_server else "https://api.telegram.org")
+    set_setting(db, "tg_lang", payload.lang.strip() if payload.lang else "fa")
+    return {"success": True, "message": "Telegram settings saved successfully!"}
+
+@app.post("/api/settings/telegram/test")
+def test_telegram(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    cfg = telegram_notifier.get_config(db)
+    if not cfg["token"] or not cfg["chat_id"]:
+        raise HTTPException(status_code=400, detail="Bot Token and Chat ID are required.")
+    test_msg = (
+        "🔔 <b>VirtuRoll Notification Test</b>\n\n"
+        "✅ ارتباط ربات تلگرام با سامانه مدیریت ترافیک با موفقیت برقرار شد!\n"
+        "از این پس کلیه هشدارهای رول‌اور و شارژ ترافیک در این کانال/گروه ارسال خواهند شد."
+        if cfg["lang"] == "fa" else
+        "🔔 <b>VirtuRoll Notification Test</b>\n\n"
+        "✅ Telegram bot connected successfully to VirtuRoll!\n"
+        "Real-time rollover and top-up alerts will be delivered here."
+    )
+    res = telegram_notifier.send_message(test_msg, db)
+    if not res["success"]:
+        raise HTTPException(status_code=400, detail=res["message"])
+    return res
+
+# --- Admin Password Change ---
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+@app.post("/api/auth/change-password")
+def change_password(payload: ChangePasswordRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not verify_password(payload.old_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect.")
+    if len(payload.new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters.")
+    user.hashed_password = get_password_hash(payload.new_password)
+    db.commit()
+    return {"success": True, "message": "Password updated successfully!"}
+
+# --- Dashboard Web Port Change ---
+class PortChangeRequest(BaseModel):
+    port: int
+
+@app.post("/api/settings/port")
+def change_port(payload: PortChangeRequest, user: User = Depends(get_current_user)):
+    if payload.port < 1024 or payload.port > 65535:
+        raise HTTPException(status_code=400, detail="Port must be between 1024 and 65535.")
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if env_path.exists():
+        content = env_path.read_text(encoding="utf-8")
+        import re
+        new_content = re.sub(r"^PORT=\d+", f"PORT={payload.port}", content, flags=re.MULTILINE)
+        env_path.write_text(new_content, encoding="utf-8")
+    
+    # Also update systemd service if running natively on Linux
+    service_file = Path("/etc/systemd/system/virturoll.service")
+    if service_file.exists():
+        try:
+            s_content = service_file.read_text(encoding="utf-8")
+            import re
+            s_content = re.sub(r"--port \d+", f"--port {payload.port}", s_content)
+            service_file.write_text(s_content, encoding="utf-8")
+            import subprocess
+            subprocess.run(["systemctl", "daemon-reload"], check=False)
+        except Exception:
+            pass
+
+    return {
+        "success": True,
+        "message": f"Port set to {payload.port}. Please run 'systemctl restart virturoll' to apply changes."
+    }
+
+# --- Backup & Restore ---
+@app.get("/api/settings/backup")
+def download_backup(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    vps_data = [v.to_dict() for v in db.query(VPSTraffic).all()]
+    from backend.database import NodeSetting
+    settings_data = {s.key: s.value for s in db.query(NodeSetting).all()}
+    backup = {
+        "version": "1.0",
+        "timestamp": datetime.utcnow().isoformat(),
+        "settings": settings_data,
+        "vps": vps_data
+    }
+    return JSONResponse(
+        content=backup,
+        headers={"Content-Disposition": f"attachment; filename=virturoll-backup-{datetime.utcnow().strftime('%Y%m%d-%H%M')}.json"}
+    )
+
+@app.post("/api/settings/backup/send-telegram")
+def send_backup_to_telegram(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    cfg = telegram_notifier.get_config(db)
+    if not cfg["enabled"]:
+        raise HTTPException(status_code=400, detail="Telegram bot is not enabled.")
+    vps_count = db.query(VPSTraffic).count()
+    msg = (
+        f"📦 <b>نسخه پشتیبان سامانه ویرتو رول</b>\n\n"
+        f"📅 تاریخ: <code>{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</code>\n"
+        f"🖥️ تعداد سرورها: <b>{vps_count}</b>\n"
+        f"✅ دیتابیس و تنظیمات فعال است."
+    )
+    res = telegram_notifier.send_message(msg, db)
+    if not res["success"]:
+        raise HTTPException(status_code=400, detail=res["message"])
+    return {"success": True, "message": "Backup summary sent to Telegram!"}
+
 # --- Serve Static Frontend ---
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 if FRONTEND_DIR.exists():

@@ -644,3 +644,440 @@ body::after {
     justify-content: center;
     padding: 20px;
 }
+
+/* ==========================================================================
+   Header Enhancements: Clock, Theme Pill, Custom Glass Language Dropdown
+   ========================================================================== */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+}
+
+.pill-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-full);
+    padding: 8px 14px;
+    font-size: 0.84rem;
+    color: var(--text-primary);
+    backdrop-filter: blur(16px);
+    transition: var(--transition-snappy);
+    cursor: default;
+    user-select: none;
+}
+
+.pill-badge.clickable {
+    cursor: pointer;
+}
+.pill-badge.clickable:hover {
+    background: var(--bg-surface-active);
+    border-color: var(--border-glow);
+}
+
+.lang-menu-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 230px;
+    background: rgba(18, 20, 29, 0.95);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--border-subtle);
+    padding: 12px;
+    z-index: 1000;
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+[dir="rtl"] .lang-menu-dropdown {
+    right: auto;
+    left: 0;
+}
+.lang-menu-dropdown.show {
+    display: flex;
+}
+
+.lang-dropdown-header {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    padding: 4px 8px 8px 8px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.lang-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition-snappy);
+    text-decoration: none;
+    user-select: none;
+}
+.lang-item:hover, .lang-item.active {
+    background: var(--bg-surface-active);
+    color: var(--text-primary);
+}
+.lang-item.active {
+    border: 1px solid var(--border-glow);
+}
+
+.lang-flag-badge {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    padding: 3px 6px;
+    color: var(--text-primary);
+}
+
+.lang-text-group {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+.lang-main-title {
+    font-size: 0.88rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+.lang-sub-title {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+.lang-check {
+    color: var(--accent-cyan);
+    font-weight: 800;
+    font-size: 0.95rem;
+}
+
+/* Breadcrumbs */
+.breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+.breadcrumbs .crumb-current {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* Mobile Hamburger Toggle */
+.mobile-menu-btn {
+    display: none;
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-sm);
+    padding: 8px;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+/* ==========================================================================
+   Hardware Telemetry Grid (CPU, RAM, Swap, Disk, Uptime) - Image 6
+   ========================================================================== */
+.telemetry-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.telemetry-card {
+    background: var(--bg-surface);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    padding: 18px 20px;
+    transition: var(--transition-snappy);
+    box-shadow: var(--shadow-glass);
+}
+.telemetry-card:hover {
+    border-color: var(--border-glow);
+    transform: translateY(-2px);
+}
+
+.telemetry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.telemetry-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+.telemetry-pct {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.telemetry-bar {
+    width: 100%;
+    height: 7px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+.telemetry-bar-fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    background: var(--gradient-brand);
+    transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.telemetry-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+/* Service Summary Row */
+.service-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 30px;
+}
+.summary-card {
+    background: var(--bg-surface);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: var(--shadow-glass);
+}
+.summary-icon-box {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--accent-emerald);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+/* ==========================================================================
+   Settings Tab Cards (Images 1, 2, 3)
+   ========================================================================== */
+.settings-section-card {
+    background: var(--bg-surface);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow-glass);
+}
+
+.settings-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+.settings-title-group h3 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.settings-title-group p {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+/* Modern iOS Style Glass Toggle Switch */
+.glass-switch {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    user-select: none;
+}
+.glass-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.slider-toggle {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-full);
+    transition: 0.3s;
+    border: 1px solid var(--border-glass);
+}
+.slider-toggle::before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 2px;
+    background-color: white;
+    border-radius: 50%;
+    transition: 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-switch input:checked + .slider-toggle {
+    background: var(--accent-indigo);
+}
+.glass-switch input:checked + .slider-toggle::before {
+    transform: translateX(19px);
+}
+
+/* Settings Form Grids */
+.settings-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+.field-hint {
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    margin-top: 5px;
+}
+
+/* Backup Cards Row (Image 3) */
+.backup-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 10px;
+}
+.backup-action-card {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    padding: 18px;
+    cursor: pointer;
+    transition: var(--transition-snappy);
+    text-align: left;
+}
+[dir="rtl"] .backup-action-card {
+    text-align: right;
+}
+.backup-action-card:hover {
+    background: var(--bg-surface-active);
+    border-color: var(--border-glow);
+    transform: translateY(-2px);
+}
+.backup-card-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+.backup-card-desc {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+/* ==========================================================================
+   Mobile Responsive Drawer (< 1024px)
+   ========================================================================== */
+.mobile-backdrop {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(6px);
+    z-index: 999;
+}
+.mobile-backdrop.open {
+    display: block;
+}
+
+@media (max-width: 1024px) {
+    .mobile-menu-btn {
+        display: inline-flex;
+    }
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        height: 100vh;
+        z-index: 1000;
+        transform: translateX(-100%);
+        transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: none;
+    }
+    [dir="rtl"] .sidebar {
+        left: auto;
+        right: 0;
+        transform: translateX(100%);
+    }
+    .sidebar.open {
+        transform: translateX(0);
+        box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+    }
+    .telemetry-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .service-summary-grid {
+        grid-template-columns: 1fr;
+    }
+    .backup-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .telemetry-grid {
+        grid-template-columns: 1fr;
+    }
+    .settings-form-grid {
+        grid-template-columns: 1fr;
+    }
+    .header-actions {
+        gap: 6px;
+    }
+    .pill-badge {
+        padding: 6px 10px;
+        font-size: 0.78rem;
+    }
+}

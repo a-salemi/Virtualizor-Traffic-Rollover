@@ -291,24 +291,32 @@ function switchTab(tab) {
     const settingsTab = document.getElementById("tabSettings");
     const pageHeading = document.getElementById("pageHeading");
 
+    closeMobileSidebar();
+    const crumbCurrent = document.getElementById("crumbCurrent");
+
     if (tab === "dashboard") {
         dashTab.style.display = "block";
         logsTab.style.display = "none";
         if (settingsTab) settingsTab.style.display = "none";
-        pageHeading.textContent = t("nav_dashboard");
+        pageHeading.textContent = t("telemetry_title");
+        if (crumbCurrent) crumbCurrent.textContent = t("breadcrumb_overview");
         loadDashboard();
+        fetchTelemetry();
     } else if (tab === "logs") {
         dashTab.style.display = "none";
         logsTab.style.display = "block";
         if (settingsTab) settingsTab.style.display = "none";
-        pageHeading.textContent = t("nav_logs");
+        pageHeading.textContent = t("logs_title");
+        if (crumbCurrent) crumbCurrent.textContent = t("breadcrumb_logs");
         loadLogs();
     } else if (tab === "settings") {
         dashTab.style.display = "none";
         logsTab.style.display = "none";
         if (settingsTab) settingsTab.style.display = "block";
-        pageHeading.textContent = t("nav_settings");
+        pageHeading.textContent = t("settings_page_title");
+        if (crumbCurrent) crumbCurrent.textContent = t("breadcrumb_settings");
         loadSettings();
+        loadTelegramSettings();
     }
 }
 
@@ -459,4 +467,296 @@ document.addEventListener("DOMContentLoaded", () => {
     initTheme();
     setLanguage(currentLang);
     checkAuth();
+});
+
+
+// --- Real-time Clock ---
+function initClock() {
+    const clockElem = document.getElementById("liveClock");
+    if (!clockElem) return;
+
+    function update() {
+        const now = new Date();
+        clockElem.textContent = now.toLocaleTimeString();
+    }
+    update();
+    setInterval(update, 1000);
+}
+
+// --- Custom Glassmorphic Language Menu (Image 5) ---
+function toggleLangMenu(e) {
+    if (e) e.stopPropagation();
+    const menu = document.getElementById("langMenu");
+    if (menu) menu.classList.toggle("show");
+}
+
+function selectLanguage(lang) {
+    setLanguage(lang);
+    const menu = document.getElementById("langMenu");
+    if (menu) menu.classList.remove("show");
+}
+
+// Close dropdowns on outside click
+document.addEventListener("click", (e) => {
+    const langBtn = document.getElementById("langDropdownBtn");
+    const langMenu = document.getElementById("langMenu");
+    if (langMenu && !langMenu.contains(e.target) && (!langBtn || !langBtn.contains(e.target))) {
+        langMenu.classList.remove("show");
+    }
+});
+
+// --- Mobile Sidebar Drawer ---
+function toggleMobileSidebar() {
+    const sidebar = document.querySelector(".sidebar");
+    const backdrop = document.getElementById("mobileBackdrop");
+    if (sidebar) sidebar.classList.toggle("open");
+    if (backdrop) backdrop.classList.toggle("open");
+}
+
+function closeMobileSidebar() {
+    const sidebar = document.querySelector(".sidebar");
+    const backdrop = document.getElementById("mobileBackdrop");
+    if (sidebar) sidebar.classList.remove("open");
+    if (backdrop) backdrop.classList.remove("open");
+}
+
+// --- Hardware Telemetry Polling (Image 6) ---
+async function fetchTelemetry() {
+    try {
+        const res = await fetch("/api/system/telemetry");
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // CPU
+        const cpuPct = data.cpu_usage_pct || 0;
+        document.getElementById("telemCpuPct").textContent = `${cpuPct.toFixed(1)}%`;
+        document.getElementById("telemCpuBar").style.width = `${Math.min(100, cpuPct)}%`;
+        document.getElementById("telemCpuCores").textContent = `${data.cpu_count || 1} ${t('telemetry_cores')}`;
+        if (data.load_average && data.load_average.length >= 3) {
+            document.getElementById("telemCpuLoad").textContent = `${t('telemetry_load')}: ${data.load_average.join(" / ")}`;
+        }
+
+        // RAM
+        const ram = data.ram || {};
+        const ramPct = ram.pct || 0;
+        document.getElementById("telemRamPct").textContent = `${ramPct.toFixed(1)}%`;
+        document.getElementById("telemRamBar").style.width = `${Math.min(100, ramPct)}%`;
+        document.getElementById("telemRamUsed").textContent = `${ram.used_gb || 0} GB / ${ram.total_gb || 0} GB`;
+        document.getElementById("telemRamSubPct").textContent = `${ramPct.toFixed(1)}%`;
+
+        // SWAP
+        const swap = data.swap || {};
+        const swapPct = swap.pct || 0;
+        document.getElementById("telemSwapPct").textContent = `${swapPct.toFixed(1)}%`;
+        document.getElementById("telemSwapBar").style.width = `${Math.min(100, swapPct)}%`;
+        document.getElementById("telemSwapUsed").textContent = `${swap.used_gb || 0} GB / ${swap.total_gb || 0} GB`;
+        document.getElementById("telemSwapSubPct").textContent = `${swapPct.toFixed(1)}%`;
+
+        // DISK
+        const disk = data.disk || {};
+        const diskPct = disk.pct || 0;
+        document.getElementById("telemDiskPct").textContent = `${diskPct.toFixed(1)}%`;
+        document.getElementById("telemDiskBar").style.width = `${Math.min(100, diskPct)}%`;
+        document.getElementById("telemDiskUsed").textContent = `${disk.used_gb || 0} GB / ${disk.total_gb || 0} GB`;
+        document.getElementById("telemDiskSubPct").textContent = `${diskPct.toFixed(1)}%`;
+
+        // Uptime & Counts
+        document.getElementById("telemUptime").textContent = data.uptime_formatted || "0d 0h 0m";
+        if (document.getElementById("sumActiveVps")) {
+            document.getElementById("sumActiveVps").textContent = allVpsData.length || 0;
+        }
+    } catch (e) {
+        console.error("Telemetry poll error", e);
+    }
+}
+
+// Start polling telemetry every 5 seconds
+setInterval(() => {
+    if (currentTab === "dashboard" && document.getElementById("tabDashboard").style.display !== "none") {
+        fetchTelemetry();
+    }
+}, 5000);
+
+// --- Telegram Bot Settings (Image 1) ---
+async function loadTelegramSettings() {
+    try {
+        const res = await fetch("/api/settings/telegram");
+        if (!res.ok) return;
+        const cfg = await res.json();
+        const toggle = document.getElementById("tgEnabledToggle");
+        if (toggle) toggle.checked = !!cfg.enabled;
+        document.getElementById("tgBotToken").value = cfg.token || "";
+        document.getElementById("tgChatId").value = cfg.chat_id || "";
+        document.getElementById("tgProxy").value = cfg.proxy || "";
+        document.getElementById("tgApiServer").value = cfg.api_server || "https://api.telegram.org";
+    } catch (e) {
+        console.error("Error loading Telegram config", e);
+    }
+}
+
+async function handleSaveTelegram(e) {
+    e.preventDefault();
+    const btn = document.getElementById("btnSaveTg");
+    btn.disabled = true;
+
+    const payload = {
+        enabled: document.getElementById("tgEnabledToggle").checked,
+        token: document.getElementById("tgBotToken").value.trim(),
+        chat_id: document.getElementById("tgChatId").value.trim(),
+        proxy: document.getElementById("tgProxy").value.trim(),
+        api_server: document.getElementById("tgApiServer").value.trim() || "https://api.telegram.org",
+        lang: currentLang
+    };
+
+    try {
+        const res = await fetch("/api/settings/telegram", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            showToast(t("toast_settings_saved"), "success");
+        } else {
+            showToast(data.detail || "Error saving Telegram settings", "error");
+        }
+    } catch (err) {
+        showToast("Error saving Telegram settings", "error");
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function testTelegramAlert() {
+    const btn = document.getElementById("btnTestTg");
+    btn.disabled = true;
+    showToast("Sending test notification to Telegram...", "info");
+
+    try {
+        const res = await fetch("/api/settings/telegram/test", { method: "POST" });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            showToast("Test message sent successfully to your Telegram!", "success");
+        } else {
+            showToast(data.detail || "Telegram delivery failed.", "error", 6000);
+        }
+    } catch (err) {
+        showToast("Failed to communicate with Telegram: " + err.message, "error");
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+// --- Web Dashboard Port (Image 2) ---
+async function handleSavePort(e) {
+    e.preventDefault();
+    const port = parseInt(document.getElementById("settingPortNum").value);
+    if (!port || port < 1024 || port > 65535) {
+        showToast("Invalid port number", "error");
+        return;
+    }
+
+    try {
+        const res = await fetch("/api/settings/port", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ port })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            showToast(data.message || t("toast_port_saved"), "success", 7000);
+        } else {
+            showToast(data.detail || "Error updating port", "error");
+        }
+    } catch (err) {
+        showToast("Failed to update port", "error");
+    }
+}
+
+// --- Password Change Modal (Image 2) ---
+function openPasswordModal() {
+    document.getElementById("pwOld").value = "";
+    document.getElementById("pwNew").value = "";
+    document.getElementById("pwConfirm").value = "";
+    document.getElementById("passwordModal").classList.add("active");
+}
+
+function closePasswordModal() {
+    document.getElementById("passwordModal").classList.remove("active");
+}
+
+async function handleChangePassword(e) {
+    e.preventDefault();
+    const old_password = document.getElementById("pwOld").value;
+    const new_password = document.getElementById("pwNew").value;
+    const confirm = document.getElementById("pwConfirm").value;
+
+    if (new_password !== confirm) {
+        showToast(t("toast_pw_mismatch"), "error");
+        return;
+    }
+
+    try {
+        const res = await fetch("/api/auth/change-password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ old_password, new_password })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            showToast(t("toast_pw_saved"), "success");
+            closePasswordModal();
+        } else {
+            showToast(data.detail || "Password change failed", "error");
+        }
+    } catch (err) {
+        showToast("Error updating password", "error");
+    }
+}
+
+// --- Backup & Restore (Image 3) ---
+function downloadBackupJson() {
+    window.location.href = "/api/settings/backup";
+}
+
+async function sendBackupTelegram() {
+    showToast("Generating backup and dispatching to Telegram...", "info");
+    try {
+        const res = await fetch("/api/settings/backup/send-telegram", { method: "POST" });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            showToast(t("toast_backup_sent"), "success");
+        } else {
+            showToast(data.detail || "Error sending backup to Telegram", "error");
+        }
+    } catch (e) {
+        showToast("Failed to send backup to Telegram", "error");
+    }
+}
+
+function handleRestoreBackup(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+        try {
+            const data = JSON.parse(evt.target.result);
+            if (data && data.version) {
+                showToast("Backup file validated successfully!", "success");
+            } else {
+                showToast("Invalid VirtuRoll backup file.", "error");
+            }
+        } catch (err) {
+            showToast("Failed to parse backup JSON file.", "error");
+        }
+    };
+    reader.readAsText(file);
+}
+
+// --- Initialization hook ---
+// Ensure clock starts on load
+document.addEventListener("DOMContentLoaded", () => {
+    initClock();
+    fetchTelemetry();
 });

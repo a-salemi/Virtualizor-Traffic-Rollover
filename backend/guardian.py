@@ -8,6 +8,7 @@ from backend.config import (
 )
 from backend.database import VPSTraffic, AuditLog
 from backend.virtualizor_api import virtualizor_client
+from backend.telegram_notifier import telegram_notifier
 
 logger = logging.getLogger("virturoll.guardian")
 
@@ -138,6 +139,12 @@ class TrafficGuardian:
                     rec.remaining_gb = new_limit
                     rec.last_rollover_period = current_month_tag
                     rollover_count += 1
+
+                    # Trigger real-time Telegram notification
+                    try:
+                        telegram_notifier.notify_rollover(vpsid, hostname, prev_limit, prev_used, new_limit)
+                    except Exception as te:
+                        logger.error(f"Failed to send rollover telegram alert: {te}")
             else:
                 # Normal ongoing operation: Keep used metrics synchronized
                 rec.current_month_used_gb = virt_used
@@ -192,6 +199,12 @@ class TrafficGuardian:
         )
         db.add(audit)
         db.commit()
+
+        # Trigger real-time Telegram top-up alert
+        try:
+            telegram_notifier.notify_topup(vpsid, rec.hostname, extra_gb, new_limit)
+        except Exception as te:
+            logger.error(f"Failed to send topup telegram alert: {te}")
 
         return {
             "success": True,

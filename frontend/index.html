@@ -82,27 +82,13 @@
                 <li>
                     <a href="#settings" class="nav-link" id="navSettings" onclick="switchTab('settings')">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                        <span data-i18n="nav_settings">Node Settings</span>
+                        <span data-i18n="nav_settings">Settings</span>
                     </a>
                 </li>
             </ul>
         </div>
 
         <div class="sidebar-controls">
-            <!-- Language Dropdown -->
-            <select id="langSelector" class="glass-select" onchange="setLanguage(this.value)">
-                <option value="en">English (LTR)</option>
-                <option value="fa">فارسی (RTL)</option>
-            </select>
-
-            <!-- Theme Switcher -->
-            <button class="glass-btn" onclick="toggleTheme()" id="themeBtn" style="width: 100%;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIcon">
-                    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                </svg>
-                <span id="themeLabel">Toggle Theme</span>
-            </button>
-
             <!-- Sign Out -->
             <button class="glass-btn" onclick="handleLogout()" style="width: 100%; color: var(--accent-rose);">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -111,20 +97,172 @@
         </div>
     </aside>
 
+    <!-- Mobile Drawer Backdrop -->
+    <div class="mobile-backdrop" id="mobileBackdrop" onclick="closeMobileSidebar()"></div>
+
     <!-- Main Workspace -->
     <main class="main-content">
         <header class="top-bar">
-            <div>
-                <h2 style="font-size: 1.5rem; font-weight: 700;" id="pageHeading" data-i18n="nav_dashboard">Dashboard</h2>
+            <div style="display: flex; align-items: center; gap: 14px;">
+                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" aria-label="Toggle Menu">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </button>
+                <div>
+                    <div class="breadcrumbs">
+                        <span data-i18n="breadcrumb_root">VirtuRoll</span>
+                        <span>/</span>
+                        <span class="crumb-current" id="crumbCurrent" data-i18n="breadcrumb_overview">Overview</span>
+                    </div>
+                    <h2 style="font-size: 1.4rem; font-weight: 700;" id="pageHeading" data-i18n="telemetry_title">Overview</h2>
+                </div>
             </div>
-            <button class="glass-btn glass-btn-primary" onclick="syncNode()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-                <span data-i18n="btn_sync_now">Sync Virtualizor</span>
-            </button>
+
+            <div class="header-actions">
+                <!-- Theme Mode Pill -->
+                <button class="pill-badge clickable" onclick="toggleTheme()" id="themePillBtn" title="Toggle Theme">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                </button>
+
+                <!-- Live Clock Pill -->
+                <div class="pill-badge num-mono" id="clockPill">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span id="liveClock">--:--:--</span>
+                </div>
+
+                <!-- Glassmorphic Language Selector (Image 5) -->
+                <div style="position: relative;">
+                    <button class="pill-badge clickable" onclick="toggleLangMenu(event)" id="langDropdownBtn">
+                        <span class="lang-flag-badge" id="selectedLangFlag">US</span>
+                        <span id="selectedLangLabel">English (US)</span>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="lang-menu-dropdown" id="langMenu">
+                        <div class="lang-dropdown-header" data-i18n="select_lang_heading">SELECT LANGUAGE</div>
+                        <div class="lang-item active" data-lang="en" onclick="selectLanguage('en')">
+                            <span class="lang-flag-badge">US</span>
+                            <div class="lang-text-group">
+                                <span class="lang-main-title">English</span>
+                                <span class="lang-sub-title">United States</span>
+                            </div>
+                            <span class="lang-check">✓</span>
+                        </div>
+                        <div class="lang-item" data-lang="fa" onclick="selectLanguage('fa')">
+                            <span class="lang-flag-badge">IR</span>
+                            <div class="lang-text-group">
+                                <span class="lang-main-title">فارسی</span>
+                                <span class="lang-sub-title">Persian (RTL)</span>
+                            </div>
+                            <span class="lang-check" style="display: none;">✓</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sync Virtualizor Button -->
+                <button class="glass-btn glass-btn-primary" onclick="syncNode()">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    <span data-i18n="btn_sync_now">Sync Virtualizor</span>
+                </button>
+            </div>
         </header>
 
         <!-- DASHBOARD TAB -->
         <section id="tabDashboard">
+            <!-- Hardware Telemetry (Image 6) -->
+            <div class="telemetry-grid">
+                <!-- CPU -->
+                <div class="telemetry-card">
+                    <div class="telemetry-header">
+                        <span class="telemetry-label" data-i18n="telemetry_cpu">CPU USAGE</span>
+                        <span class="telemetry-pct num-mono" id="telemCpuPct">0.0%</span>
+                    </div>
+                    <div class="telemetry-bar">
+                        <div class="telemetry-bar-fill" id="telemCpuBar" style="width: 0%;"></div>
+                    </div>
+                    <div class="telemetry-footer num-mono">
+                        <span id="telemCpuCores">0 Cores</span>
+                        <span id="telemCpuLoad">Load: 0.00 / 0.00 / 0.00</span>
+                    </div>
+                </div>
+
+                <!-- RAM -->
+                <div class="telemetry-card">
+                    <div class="telemetry-header">
+                        <span class="telemetry-label" data-i18n="telemetry_ram">MEMORY (RAM)</span>
+                        <span class="telemetry-pct num-mono" id="telemRamPct">0.0%</span>
+                    </div>
+                    <div class="telemetry-bar">
+                        <div class="telemetry-bar-fill" id="telemRamBar" style="width: 0%;"></div>
+                    </div>
+                    <div class="telemetry-footer num-mono">
+                        <span id="telemRamUsed">0 GB / 0 GB</span>
+                        <span id="telemRamSubPct">0.0%</span>
+                    </div>
+                </div>
+
+                <!-- SWAP -->
+                <div class="telemetry-card">
+                    <div class="telemetry-header">
+                        <span class="telemetry-label" data-i18n="telemetry_swap">SWAP USAGE</span>
+                        <span class="telemetry-pct num-mono" id="telemSwapPct">0.0%</span>
+                    </div>
+                    <div class="telemetry-bar">
+                        <div class="telemetry-bar-fill" id="telemSwapBar" style="width: 0%;"></div>
+                    </div>
+                    <div class="telemetry-footer num-mono">
+                        <span id="telemSwapUsed">0 GB / 0 GB</span>
+                        <span id="telemSwapSubPct">0.0%</span>
+                    </div>
+                </div>
+
+                <!-- DISK -->
+                <div class="telemetry-card">
+                    <div class="telemetry-header">
+                        <span class="telemetry-label" data-i18n="telemetry_disk">DISK STORAGE</span>
+                        <span class="telemetry-pct num-mono" id="telemDiskPct">0.0%</span>
+                    </div>
+                    <div class="telemetry-bar">
+                        <div class="telemetry-bar-fill" id="telemDiskBar" style="width: 0%;"></div>
+                    </div>
+                    <div class="telemetry-footer num-mono">
+                        <span id="telemDiskUsed">0 GB / 0 GB</span>
+                        <span id="telemDiskSubPct">0.0%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Service Summary Status (Image 6) -->
+            <div class="service-summary-grid">
+                <div class="summary-card">
+                    <div class="summary-icon-box" style="background: rgba(99, 102, 241, 0.15); color: var(--accent-indigo); border-color: rgba(99, 102, 241, 0.3);">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.76rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;" data-i18n="telemetry_connected_nodes">CONNECTED PANELS</div>
+                        <div class="num-mono" style="font-size: 1.4rem; font-weight: 700;" id="sumConnectedPanels">1</div>
+                    </div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="summary-icon-box" style="background: rgba(139, 92, 246, 0.15); color: var(--accent-violet); border-color: rgba(139, 92, 246, 0.3);">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.76rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;" data-i18n="telemetry_active_vps">ACTIVE INSTANCES</div>
+                        <div class="num-mono" style="font-size: 1.4rem; font-weight: 700;" id="sumActiveVps">0</div>
+                    </div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="summary-icon-box">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.76rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;" data-i18n="telemetry_uptime">UPTIME</div>
+                        <div class="num-mono" style="font-size: 1.25rem; font-weight: 700;" id="telemUptime">0d 0h 0m</div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Metrics -->
             <div class="metrics-grid">
                 <div class="metric-card">
@@ -230,23 +368,191 @@
             </div>
         </section>
 
-        <!-- NODE SETTINGS TAB -->
+        <!-- SETTINGS TAB (Images 1, 2, 3) -->
         <section id="tabSettings" style="display: none;">
-            <div class="table-container" style="max-width: 680px; margin: 0 auto;">
-                <div class="table-header-bar">
-                    <div>
-                        <h3 style="font-size: 1.25rem; font-weight: 700;" data-i18n="settings_title">Virtualizor Node Connection</h3>
-                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;" data-i18n="settings_desc">
-                            Connect to your Virtualizor dedicated node (local or remote server).
-                        </p>
+            <!-- Header Info -->
+            <div style="margin-bottom: 24px;">
+                <h3 style="font-size: 1.3rem; font-weight: 700;" data-i18n="settings_page_title">Settings</h3>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;" data-i18n="settings_page_desc">
+                    Telegram bot alerts, multi-user accounts, backup management, and network port configuration
+                </p>
+            </div>
+
+            <!-- Card 1: Telegram Bot Notifications (Image 1) -->
+            <div class="settings-section-card">
+                <div class="settings-card-header">
+                    <div class="settings-title-group">
+                        <h3 data-i18n="tg_title">
+                            <span>🤖</span> Telegram Bot Notifications
+                        </h3>
+                        <p data-i18n="tg_desc">Receive real-time alerts whenever a traffic rollover occurs, top-up is applied, or if an error happens.</p>
+                    </div>
+                    <label class="glass-switch">
+                        <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);" data-i18n="tg_alerts_toggle">Bot Alerts:</span>
+                        <input type="checkbox" id="tgEnabledToggle">
+                        <span class="slider-toggle"></span>
+                    </label>
+                </div>
+
+                <form onsubmit="handleSaveTelegram(event)">
+                    <div class="settings-form-grid">
+                        <div>
+                            <label style="display: block; font-size: 0.8rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="tg_token_label">TELEGRAM BOT TOKEN</label>
+                            <input type="text" id="tgBotToken" class="glass-input num-mono" style="width: 100%;" placeholder="8668960415:AAGHAallElf7w9PGjNfKOtl1zvtcWVHsKQw">
+                            <div class="field-hint" data-i18n="tg_token_desc">Obtained from @BotFather in Telegram.</div>
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.8rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="tg_chat_id_label">CHAT ID / CHANNEL ID</label>
+                            <input type="text" id="tgChatId" class="glass-input num-mono" style="width: 100%;" placeholder="-1004444124695">
+                            <div class="field-hint" data-i18n="tg_chat_id_desc">Your numeric Telegram User ID or Group/Channel ID.</div>
+                        </div>
+                    </div>
+
+                    <div class="settings-form-grid">
+                        <div>
+                            <label style="display: block; font-size: 0.8rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="tg_proxy_label">SOCKS PROXY</label>
+                            <input type="text" id="tgProxy" class="glass-input num-mono" style="width: 100%;" placeholder="socks5://user:pass@host:port">
+                            <div class="field-hint" data-i18n="tg_proxy_desc">Enables SOCKS5 proxy to connect to Telegram (e.g. for filtered servers).</div>
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.8rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="tg_api_server_label">TELEGRAM API SERVER</label>
+                            <input type="text" id="tgApiServer" class="glass-input num-mono" style="width: 100%;" placeholder="https://api.telegram.org">
+                            <div class="field-hint" data-i18n="tg_api_server_desc">Changes Telegram API server for connection. Leave empty to use official API.</div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 20px; flex-wrap: wrap;">
+                        <button type="submit" class="glass-btn glass-btn-primary" id="btnSaveTg">
+                            <span data-i18n="btn_save_tg">Save Telegram Settings</span>
+                        </button>
+                        <button type="button" class="glass-btn" onclick="testTelegramAlert()" id="btnTestTg">
+                            <span>🔔</span> <span data-i18n="btn_test_tg">Send Test Notification</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Card 2: User Management & Access Control (Image 2) -->
+            <div class="settings-section-card">
+                <div class="settings-card-header">
+                    <div class="settings-title-group">
+                        <h3 data-i18n="user_mgmt_title">
+                            <span>👥</span> User Management & Access Control
+                        </h3>
+                        <p data-i18n="user_mgmt_desc">Manage accounts and roles: Admin (full control).</p>
+                    </div>
+                    <button type="button" class="glass-btn glass-btn-primary" onclick="openPasswordModal()">
+                        <span data-i18n="btn_add_user">+ Add User</span>
+                    </button>
+                </div>
+
+                <table class="vps-table">
+                    <thead>
+                        <tr>
+                            <th data-i18n="th_user_username">USERNAME</th>
+                            <th data-i18n="th_user_role">ACCESS ROLE</th>
+                            <th data-i18n="th_user_created">CREATED AT</th>
+                            <th data-i18n="th_user_actions">ACTIONS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <strong>admin (You)</strong> <span class="badge-tag" style="color: var(--accent-indigo); border-color: var(--accent-indigo); margin-left: 6px;">ADMIN</span>
+                            </td>
+                            <td>
+                                <span class="badge-tag" style="background: rgba(99, 102, 241, 0.2); color: var(--accent-indigo);">ADMIN</span>
+                            </td>
+                            <td class="num-mono" id="adminCreatedAt">2026-01-01 00:00:00</td>
+                            <td>
+                                <button type="button" class="glass-btn" onclick="openPasswordModal()" style="padding: 6px 12px; font-size: 0.82rem;">
+                                    <span>🔑</span> <span data-i18n="btn_change_pw">Password</span>
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Card 3: Web Dashboard Port (Image 2) -->
+            <div class="settings-section-card">
+                <div class="settings-card-header">
+                    <div class="settings-title-group">
+                        <h3 data-i18n="port_title">
+                            <span>🌐</span> Web Dashboard Port
+                        </h3>
+                        <p data-i18n="port_desc">Customize the manager listening port (default is 8789).</p>
+                    </div>
+                </div>
+
+                <form onsubmit="handleSavePort(event)" style="max-width: 380px;">
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: block; font-size: 0.8rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="port_number_label">PORT NUMBER</label>
+                        <input type="number" id="settingPortNum" class="glass-input num-mono" style="width: 100%;" min="1024" max="65535" value="8789" required>
+                        <div class="field-hint" data-i18n="port_hint">After changing, run systemctl restart virturoll on your server.</div>
+                    </div>
+                    <button type="submit" class="glass-btn glass-btn-primary" style="margin-top: 8px;">
+                        <span data-i18n="btn_save_port">Save Port</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Card 4: Backup & Restore (Image 3) -->
+            <div class="settings-section-card">
+                <div class="settings-card-header">
+                    <div class="settings-title-group">
+                        <h3 data-i18n="backup_title">
+                            <span>💾</span> Backup & Restore
+                        </h3>
+                        <p data-i18n="backup_desc">Create a full backup of all panels, schedules, and accounts, or restore from a JSON file.</p>
+                    </div>
+                </div>
+
+                <div class="backup-grid">
+                    <div class="backup-action-card" onclick="downloadBackupJson()">
+                        <div class="backup-card-title">
+                            <span>🕹️</span> <span data-i18n="backup_download_title">Download Backup (.json)</span>
+                        </div>
+                        <div class="backup-card-desc" data-i18n="backup_download_desc">
+                            Export panels, schedules, users & settings to a downloadable JSON file.
+                        </div>
+                    </div>
+
+                    <div class="backup-action-card" onclick="document.getElementById('backupFileInput').click()">
+                        <div class="backup-card-title">
+                            <span>🕹️</span> <span data-i18n="backup_restore_title">Restore from File</span>
+                        </div>
+                        <div class="backup-card-desc" data-i18n="backup_restore_desc">
+                            Upload a previously saved JSON backup to restore entire fleet state.
+                        </div>
+                        <input type="file" id="backupFileInput" accept=".json" style="display: none;" onchange="handleRestoreBackup(event)">
+                    </div>
+
+                    <div class="backup-action-card" onclick="sendBackupTelegram()">
+                        <div class="backup-card-title">
+                            <span>✈️</span> <span data-i18n="backup_tg_title">Send Backup to Telegram</span>
+                        </div>
+                        <div class="backup-card-desc" data-i18n="backup_tg_desc">
+                            Deliver an instant backup file directly to your configured Telegram bot.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 5: Virtualizor Node Connection -->
+            <div class="settings-section-card">
+                <div class="settings-card-header">
+                    <div class="settings-title-group">
+                        <h3 data-i18n="settings_title">Virtualizor Node Connection</h3>
+                        <p data-i18n="settings_desc">Connect to your Virtualizor dedicated node (local or remote server).</p>
                     </div>
                     <div id="nodeStatusBadge" class="badge-tag" style="border-color: var(--accent-rose); color: var(--accent-rose);">
                         <span data-i18n="status_offline">Unconfigured / Offline</span>
                     </div>
                 </div>
 
-                <form onsubmit="handleSaveSettings(event)" style="margin-top: 24px;">
-                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 18px;">
+                <form onsubmit="handleSaveSettings(event)" style="margin-top: 14px;">
+                    <div class="settings-form-grid">
                         <div>
                             <label style="display: block; font-size: 0.82rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="label_node_ip">Server IP or Domain</label>
                             <input type="text" id="settingNodeIp" class="glass-input num-mono" style="width: 100%;" placeholder="e.g. 185.120.45.67 or your-node-ip" required>
@@ -257,12 +563,12 @@
                         </div>
                     </div>
 
-                    <div style="margin-bottom: 18px;">
+                    <div style="margin-bottom: 16px;">
                         <label style="display: block; font-size: 0.82rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="label_api_key">Virtualizor API Key</label>
                         <input type="text" id="settingApiKey" class="glass-input num-mono" style="width: 100%;" placeholder="Enter API Key from Virtualizor Admin Panel" required>
                     </div>
 
-                    <div style="margin-bottom: 24px;">
+                    <div style="margin-bottom: 22px;">
                         <label style="display: block; font-size: 0.82rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="label_api_pass">Virtualizor API Password</label>
                         <input type="password" id="settingApiPass" class="glass-input num-mono" style="width: 100%;" placeholder="Enter API Password">
                     </div>
@@ -299,6 +605,31 @@
                 <div style="display: flex; justify-content: flex-end; gap: 10px;">
                     <button type="button" class="glass-btn" onclick="closeTopupModal()" data-i18n="modal_btn_cancel">Cancel</button>
                     <button type="submit" class="glass-btn glass-btn-primary" data-i18n="modal_btn_confirm">Confirm Top-Up</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div class="modal-overlay" id="passwordModal">
+        <div class="modal-card">
+            <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 8px;" data-i18n="modal_pw_title">Change Admin Password</h3>
+            <form onsubmit="handleChangePassword(event)">
+                <div style="margin-bottom: 14px;">
+                    <label style="display: block; font-size: 0.82rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="modal_old_pw">Current Password</label>
+                    <input type="password" id="pwOld" class="glass-input" style="width: 100%;" required>
+                </div>
+                <div style="margin-bottom: 14px;">
+                    <label style="display: block; font-size: 0.82rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="modal_new_pw">New Password</label>
+                    <input type="password" id="pwNew" class="glass-input" style="width: 100%;" required minlength="6">
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.82rem; margin-bottom: 6px; color: var(--text-secondary);" data-i18n="modal_confirm_pw">Confirm New Password</label>
+                    <input type="password" id="pwConfirm" class="glass-input" style="width: 100%;" required minlength="6">
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" class="glass-btn" onclick="closePasswordModal()" data-i18n="modal_btn_cancel">Cancel</button>
+                    <button type="submit" class="glass-btn glass-btn-primary" data-i18n="btn_save_pw">Update Password</button>
                 </div>
             </form>
         </div>
