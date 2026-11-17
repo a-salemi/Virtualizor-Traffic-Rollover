@@ -552,7 +552,7 @@ if FRONTEND_DIR.exists():
 
     @app.get("/")
     def serve_frontend():
-        return FileResponse(FRONTEND_DIR / "index.html")
+        return FileResponse(FRONTEND_DIR / "index.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
     @app.get("/{catchall:path}")
     def serve_spa(catchall: str):

@@ -1057,6 +1057,17 @@ function setLanguage(lang) {
 
     updateUiTranslations();
     updateLangSelectorButton();
+
+    // Dynamically refresh current table/view with newly selected language
+    if (typeof currentTab !== "undefined") {
+        if (currentTab === "vps" && typeof renderVpsTable === "function" && typeof allVpsData !== "undefined") {
+            renderVpsTable(allVpsData);
+        } else if (currentTab === "panels" && typeof loadPanels === "function") {
+            loadPanels();
+        } else if (currentTab === "logs" && typeof loadLogs === "function") {
+            loadLogs();
+        }
+    }
 }
 
 function updateUiTranslations() {
