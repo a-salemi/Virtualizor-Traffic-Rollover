@@ -31,9 +31,18 @@ class TelegramNotifier:
             if close_db:
                 db.close()
 
-    def send_message(self, text: str, db=None) -> dict:
+    def send_message(self, text: str, db=None, token: str = None, chat_id: str = None, proxy: str = None, api_server: str = None, force: bool = False) -> dict:
         cfg = self.get_config(db)
-        if not cfg["enabled"]:
+        if token:
+            cfg["token"] = token
+        if chat_id:
+            cfg["chat_id"] = chat_id
+        if proxy is not None:
+            cfg["proxy"] = proxy
+        if api_server:
+            cfg["api_server"] = api_server
+
+        if not cfg["enabled"] and not force:
             return {"success": False, "message": "Telegram notifications are disabled."}
         if not cfg["token"] or not cfg["chat_id"]:
             return {"success": False, "message": "Telegram Bot Token or Chat ID is missing."}
@@ -47,7 +56,13 @@ class TelegramNotifier:
 
         proxies = {}
         if cfg["proxy"]:
-            proxies = {"http": cfg["proxy"], "https": cfg["proxy"]}
+            proxy_url = cfg["proxy"].strip()
+            # If socks5 is used, socks5h ensures DNS resolution happens remotely through the proxy
+            if proxy_url.startswith("socks5://"):
+                proxy_url = "socks5h://" + proxy_url[9:]
+            elif proxy_url.startswith("socks4://"):
+                proxy_url = "socks4a://" + proxy_url[9:]
+            proxies = {"http": proxy_url, "https": proxy_url}
 
         try:
             res = requests.post(url, json=payload, proxies=proxies, timeout=12)

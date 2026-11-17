@@ -406,11 +406,23 @@ def save_telegram_settings(payload: TelegramSettingsRequest, user: User = Depend
     set_setting(db, "tg_lang", payload.lang.strip() if payload.lang else "fa")
     return {"success": True, "message": "Telegram settings saved successfully!"}
 
+class TelegramTestRequest(BaseModel):
+    token: Optional[str] = ""
+    chat_id: Optional[str] = ""
+    proxy: Optional[str] = ""
+    api_server: Optional[str] = "https://api.telegram.org"
+
 @app.post("/api/settings/telegram/test")
-def test_telegram(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def test_telegram(payload: Optional[TelegramTestRequest] = None, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     cfg = telegram_notifier.get_config(db)
-    if not cfg["token"] or not cfg["chat_id"]:
-        raise HTTPException(status_code=400, detail="Bot Token and Chat ID are required.")
+    tok = (payload.token.strip() if payload and payload.token else "") or cfg["token"]
+    cid = (payload.chat_id.strip() if payload and payload.chat_id else "") or cfg["chat_id"]
+    prx = (payload.proxy.strip() if payload and payload.proxy is not None else "") or cfg["proxy"]
+    srv = (payload.api_server.strip() if payload and payload.api_server else "") or cfg["api_server"]
+
+    if not tok or not cid:
+        raise HTTPException(status_code=400, detail="Bot Token and Chat ID are required to test notification.")
+
     test_msg = (
         "🔔 <b>VirtuRoll Notification Test</b>\n\n"
         "✅ ارتباط ربات تلگرام با سامانه مدیریت ترافیک با موفقیت برقرار شد!\n"
@@ -420,7 +432,7 @@ def test_telegram(user: User = Depends(get_current_user), db: Session = Depends(
         "✅ Telegram bot connected successfully to VirtuRoll!\n"
         "Real-time rollover and top-up alerts will be delivered here."
     )
-    res = telegram_notifier.send_message(test_msg, db)
+    res = telegram_notifier.send_message(test_msg, db, token=tok, chat_id=cid, proxy=prx, api_server=srv, force=True)
     if not res["success"]:
         raise HTTPException(status_code=400, detail=res["message"])
     return res

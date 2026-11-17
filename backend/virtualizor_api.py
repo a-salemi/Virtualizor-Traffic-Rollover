@@ -87,7 +87,7 @@ class VirtualizorClient:
         params.update(base_params)
         return params
 
-    def _request(self, params: Dict[str, Any], data: Optional[Dict[str, Any]] = None, method: str = "POST", timeout = (3.0, 7.0)) -> Optional[Dict[str, Any]]:
+    def _request(self, params: Dict[str, Any], data: Optional[Dict[str, Any]] = None, method: str = "POST", timeout = (5.0, 30.0)) -> Optional[Dict[str, Any]]:
         if not self.is_configured():
             logger.warning("Virtualizor API is not configured yet with API_KEY and API_PASS.")
             return {"error": "Virtualizor API is not configured yet."}
@@ -123,6 +123,7 @@ class VirtualizorClient:
 
             res.raise_for_status()
             text = res.text.strip()
+            logger.info(f"Virtualizor {method} act={params.get('act')} vpsid={params.get('vpsid')} status={res.status_code} len={len(text)}")
 
             # Robust JSON extraction even if PHP output contains warnings or notices
             if "{" in text and "}" in text:
@@ -146,8 +147,8 @@ class VirtualizorClient:
             except Exception:
                 return {"error": "Invalid response format received from Virtualizor node."}
         except requests.exceptions.Timeout:
-            logger.error(f"Virtualizor API timeout for {self.base_url}")
-            return {"error": "Virtualizor node connection timed out (server took too long to respond)."}
+            logger.error(f"Virtualizor API timeout for {self.base_url} after {timeout}")
+            return {"error": "Virtualizor node took too long to apply changes (timeout)."}
         except requests.exceptions.RequestException as e:
             logger.error(f"Virtualizor API connection error to {self.base_url}: {e}")
             return {"error": f"Cannot connect to Virtualizor node ({e})"}
@@ -214,22 +215,21 @@ class VirtualizorClient:
         return all_vps.get(str(vpsid))
 
     def update_vps_bandwidth(self, vpsid: str, new_bandwidth_gb: float, hostname: str = "") -> Tuple[bool, str]:
-        """Update VPS total bandwidth limit via Virtualizor API. Returns (success, message)."""
-        clean_limit = round(float(new_bandwidth_gb), 2)
+        """Update VPS total bandwidth limit via Virtualizor Admin API (act=editvs&editvps=1). Returns (success, message)."""
+        clean_limit = int(round(new_bandwidth_gb)) if abs(new_bandwidth_gb - round(new_bandwidth_gb)) < 0.01 else round(float(new_bandwidth_gb), 2)
         params = {
             "act": "editvs",
             "vpsid": str(vpsid),
             "vid": str(vpsid),
+            "editvps": 1,
             "editvs": 1,
-            "editvm": 1,
             "bandwidth": clean_limit
         }
         post_data = {
-            "act": "editvs",
-            "editvs": 1,
-            "editvm": 1,
             "vpsid": str(vpsid),
             "vid": str(vpsid),
+            "editvps": 1,
+            "editvs": 1,
             "bandwidth": clean_limit,
             "submit": 1,
             "do": 1
@@ -238,7 +238,28 @@ class VirtualizorClient:
             params["hostname"] = hostname
             post_data["hostname"] = hostname
 
-        res = self._request(params, data=post_data, method="POST")
+        res = self._request(params, data=post_data, method="POST", timeout=(5.0, 30.0))
+        if not res or not isinstance(res, dict):
+            return False, "No valid response from Virtualizor node."
+
+        if res.get("done"):
+            done_val = res.get("done")
+            msg = done_val.get("msg") if isinstance(done_val, dict) else str(done_val)
+            logger.info(f"Successfully updated VPS {vpsid} bandwidth to {clean_limit} GB: {msg}")
+            return True, str(msg or "Bandwidth updated successfully.")
+
+        if res.get("error"):
+            err = res.get("error")
+            err_msg = ", ".join(err) if isinstance(err, list) else str(err)
+            logger.error(f"Virtualizor API returned error for editvs {vpsid}: {err_msg}")
+            return False, err_msg
+
+        if res.get("vs_info") or (res.get("title") and not res.get("error")):
+            logger.info(f"Virtualizor node confirmed VPS {vpsid} bandwidth update to {clean_limit} GB.")
+            return True, "Bandwidth updated successfully on node."
+
+        logger.warning(f"Virtualizor did not return confirmation for editvs {vpsid}: {res}")
+        return False, "Virtualizor node did not confirm bandwidth modification."
         if not res or not isinstance(res, dict):
             return False, "No valid response from Virtualizor node."
 

@@ -308,7 +308,7 @@ async function submitTopup(e) {
     }
 
     const controller = new AbortController();
-    const timeoutTimer = setTimeout(() => controller.abort(), 12000);
+    const timeoutTimer = setTimeout(() => controller.abort(), 35000);
 
     try {
         const res = await fetch(`/api/vps/${vpsid}/add-traffic`, {
@@ -735,13 +735,22 @@ async function testTelegramAlert() {
     btn.disabled = true;
     showToast("Sending test notification to Telegram...", "info");
 
+    const token = document.getElementById("tgBotToken").value.trim();
+    const chat_id = document.getElementById("tgChatId").value.trim();
+    const proxy = document.getElementById("tgProxy").value.trim();
+    const api_server = document.getElementById("tgApiServer").value.trim();
+
     try {
-        const res = await fetch("/api/settings/telegram/test", { method: "POST" });
+        const res = await fetch("/api/settings/telegram/test", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token, chat_id, proxy, api_server })
+        });
         const data = await res.json();
         if (res.ok && data.success) {
             showToast("Test message sent successfully to your Telegram!", "success");
         } else {
-            showToast(data.detail || "Telegram delivery failed.", "error", 6000);
+            showToast(data.detail || data.message || "Telegram delivery failed.", "error", 6000);
         }
     } catch (err) {
         showToast("Failed to communicate with Telegram: " + err.message, "error");
